@@ -13,8 +13,14 @@ class Admin extends Authenticatable
         'first_name',
         'last_name',
         'email',
+        'role_id',
         'password',
     ];
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
 
     protected $hidden = [
         'password',

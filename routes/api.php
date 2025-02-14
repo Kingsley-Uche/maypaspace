@@ -10,21 +10,51 @@ use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\FloorController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\BookingController;
+use App\Http\Controllers\Api\V1\OwnerController;
 
 use App\Http\Middleware\EnsureAdmin;
 
 Route::prefix('system-admin')->group(function(){
     Route::post('/login', [SystemAdminAuthController::class, 'login']);
 
+    Route::post('/confirm-user', [SystemAdminAuthController::class,'sendOtp']);
+    Route::post('/verify-otp', [SystemAdminAuthController::class,'verifyOtp']);
+
     Route::middleware(['auth:sanctum', EnsureAdmin::class])->group(function(){
+        Route::post('/change-password', [SystemAdminAuthController::class, 'changePassword']);
         Route::post('/logout', [SystemAdminAuthController::class, 'logout']);
-        Route::post('/register-workspace', [SystemAdminFunctionsController::class, 'registerCompany']);
+
+        //Tenant Management
+        Route::post('/register-workspace', [SystemAdminFunctionsController::class, 'createTenant']);
+        Route::post('/update-workspace/{id}', [SystemAdminFunctionsController::class, 'updateTenant']);
+        Route::post('/delete-workspace', [SystemAdminFunctionsController::class, 'destroyTenant']);
+        Route::get('/view-workspace/{id}', [SystemAdminFunctionsController::class, 'getTenant']);
+        Route::get('/view-workspaces', [SystemAdminFunctionsController::class, 'getTenants']);
+
+
+        //System Admin
+        Route::post('/add', [OwnerController::class, 'addSystemAdmin']);
+        Route::post('/update/{id}', [OwnerController::class, 'updateSystemAdmin']);
+        Route::get('/view-all', [OwnerController::class, 'viewSystemAdmins']);
+        Route::get('/view/{id}', [OwnerController::class, 'viewSystemAdmin']);
+        Route::post('/delete', [OwnerController::class, 'deleteSystemAdmin']);
+
+        Route::get('/details', [SystemAdminFunctionsController::class, 'systemAdminDetails']);
+
+        //Roles
+        Route::post('/create-role', [OwnerController::class, 'createRole']);
+        Route::post('/update-role/{id}', [OwnerController::class, 'updateRole']);
+        Route::post('/delete-role', [OwnerController::class, 'destroyRole']);
+        Route::get('/view-role/{id}', [OwnerController::class, 'viewRole']);
+        Route::get('/view-roles', [OwnerController::class, 'viewRoles']);
+
     });
 });
 
 Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
     Route::post('/login', [UserAuthController::class,'login']);
     Route::post('/confirm-user', [UserAuthController::class,'sendOtp']);
+    Route::post('/verify-otp', [UserAuthController::class,'verifyOtp']);
     Route::post('/change-password', [UserAuthController::class,'resetPassword']);
     
 

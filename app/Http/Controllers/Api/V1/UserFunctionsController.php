@@ -38,7 +38,7 @@ class UserFunctionsController extends Controller
         $user = $request->user();
 
         if($user->user_type_id == 3 || $tenant->id != $user->tenant_id){
-            return response()->json(['message'=> 'You are not authorized'], 401);
+            return response()->json(['message'=> 'You are not authorized'], 403);
         }
 
         // Retrieve validated data from the validator instance
@@ -69,7 +69,7 @@ class UserFunctionsController extends Controller
             return response()->json(['message' => 'User added successfully! A verification email has been sent.', 'user' => $user], 201); 
         }
 
-        return response()->json(['message'=> 'Something went wrong, Contact us for help'],422);
+        return response()->json(['message'=> 'Something went wrong, Contact us for help'],500);
     }
     private function generateSecurePassword(): string
     {
@@ -107,6 +107,7 @@ class UserFunctionsController extends Controller
         } catch (\Exception $e) {
             // Log the error for debugging purposes
             \Log::error('Error sending verification email: ' . $e->getMessage());
+            return response()->json(['message'=> $e->getMessage()],422);
         }
 
         return $response;

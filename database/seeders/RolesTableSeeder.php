@@ -7,20 +7,21 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
-class AdminsTableSeeder extends Seeder
+class RolesTableSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
-        DB::table("admins")->insert([
+        DB::table("roles")->insert([
             [
-              'first_name' => 'Emeka',
-              'last_name'=> 'David',
-              'email'=> 'admin@ffsd.com',
-              'role_id' => 1,
-              'password'=> Hash::make('testingPassword'),
+              'role' => 'owner',
+              'create_tenant'=> 'yes',
+              'update_tenant'=> 'yes',
+              'view_tenant'=> 'yes',
+              'delete_tenant'=>'yes',
+              'view_tenant_income'=> 'yes',
             ]
         ]);
     }

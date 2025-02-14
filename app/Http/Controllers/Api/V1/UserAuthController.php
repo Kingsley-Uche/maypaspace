@@ -38,13 +38,13 @@ class UserAuthController extends Controller
             //if no user is found for that particular tenant using the tenant Id, return response
 
             if (!$user) {
-                return response()->json(['message'=> 'invalid credentials'],401);
+                return response()->json(['message'=> 'invalid credentials'],404);
             }
 
             //If user is found but passwords don't match
 
             if (!$user && !Hash::check($request->password, $user->password)) {
-                return response()->json(['message' => 'Invalid credentials'], 401);
+                return response()->json(['message' => 'Invalid credentials'], 404);
             }
 
             //create Api Token
@@ -106,10 +106,10 @@ class UserAuthController extends Controller
                 // Send OTP via email
                 Mail::to($request->email)->send(new OtpMail($messageContent));
 
-                return response()->json(['message' => 'Please verify you own the account by providing OTP sent to your registered email'], 201);
+                return response()->json(['message' => 'Please verify you own the account by providing OTP sent to your registered email'], 200);
             }
                 
-            return response()->json(['message' => 'Could not find user'], 403);
+            return response()->json(['message' => 'Could not find user'], 404);
         }
         catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -191,7 +191,7 @@ class UserAuthController extends Controller
             $result = $user->save();
 
             if(!$result){
-                return response()->json(['message' => 'Something went wrong with password change'], 401); 
+                return response()->json(['message' => 'Something went wrong with password change'], 500); 
             }
 
             return response()->json(['message' => 'OTP verified successfully.'], 200);
