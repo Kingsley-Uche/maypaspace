@@ -8,9 +8,11 @@ use App\Http\Controllers\Api\V1\SystemAdminFunctionsController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\FloorController;
+use App\Http\Controllers\Api\V1\SpaceController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\OwnerController;
+use App\Http\Controllers\Api\V1\SubscriptionController;
 
 use App\Http\Middleware\EnsureAdmin;
 
@@ -48,6 +50,19 @@ Route::prefix('system-admin')->group(function(){
         Route::get('/view-role/{id}', [OwnerController::class, 'viewRole']);
         Route::get('/view-roles', [OwnerController::class, 'viewRoles']);
 
+        //Plans Management
+        Route::post('/create-plan', [SubscriptionController::class, 'createPlan']);
+        Route::get('/view-plans', [SubscriptionController::class, 'viewPlans']);
+        Route::get('/view-plan/{id}', [SubscriptionController::class, 'viewPlan']);
+        Route::post('/update-plan/{id}', [SubscriptionController::class, 'updatePlan']);
+        Route::post('/delete-plan', [SubscriptionController::class, 'deletePlan']);
+
+        //Subscription for Subscription Management
+        Route::post('/subscribe-tenant', [SubscriptionController::class, 'createSubscription']);
+        Route::get('/view-subscriptions', [SubscriptionController::class, 'viewSubscriptions']);
+        Route::get('/view-subscription/{id}', [SubscriptionController::class, 'viewSubscription']);
+        Route::post('/delete-subscription', [SubscriptionController::class, 'deleteSubscription']);
+
     });
 });
 
@@ -60,7 +75,12 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [UserAuthController::class, 'logout']);
+
         Route::post('/add-user', [UserFunctionsController::class, 'addUser']);
+        Route::post('/update-user/{id}', [UserFunctionsController::class, 'updateUser']);
+        Route::get('/view-users', [UserFunctionsController::class, 'viewUsers']);
+        Route::get('/view-user/{id}', [UserFunctionsController::class, 'viewUser']);
+        Route::post('/delete-user', [UserFunctionsController::class, 'destroyUser']);
 
         //CRUD For Category
         Route::post('/category/create', [CategoryController::class, 'create']);
@@ -73,12 +93,14 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/location/update/{id}', [LocationController::class, 'update']);
         Route::post('/location/delete', [LocationController::class, 'destroy']);
         Route::get('/location/list-locations', [LocationController::class, 'index']);
+        Route::get('/location/show/{id}', [LocationController::class, 'viewOne']);
 
         //CRUD for Floor
         Route::post('/floor/create', [FloorController::class, 'create']);
         Route::post('/floor/update/{id}', [FloorController::class, 'update']);
         Route::post('/floor/delete', [FloorController::class, 'destroy']);
-        Route::get('/floor/list-floors', [FloorController::class, 'index']);
+        Route::get('/floor/list-floors/{location_id}', [FloorController::class, 'index']);
+        Route::get('/floor/show/{id}', [FloorController::class, 'fetchOne']);
 
         //CRUD for Product
         Route::post('/product/create', [ProductController::class, 'create']);
@@ -86,12 +108,18 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/product/delete', [ProductController::class, 'destroy']);
         Route::get('/product/list-products', [ProductController::class, 'index']);
 
+        //CRUD FOR SPACE
+        Route::post('/space/create', [SpaceController::class, 'create']);
+        Route::post('/space/update/{id}', [SpaceController::class, 'update']);
+        Route::post('/space/delete', [SpaceController::class, 'destroy']);
+        Route::get('/space/list-spaces/{location_id}/{floor_id}', [SpaceController::class, 'index']);
+        Route::get('/space/show/{id}', [SpaceController::class, 'fetchOne']);
+
         //CRUD for Booking
         Route::post('/booking/create', [BookingController::class, 'create']);
         Route::post('/booking/admin-create', [BookingController::class, 'adminCreate']);
         Route::post('/booking/update/{id}', [BookingController::class, 'update']);
         Route::post('/booking/delete', [BookingController::class, 'destroy']);
         Route::get('/booking/list-bookings', [BookingController::class, 'index']);
-
     });
 });

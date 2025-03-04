@@ -8,31 +8,50 @@ use Illuminate\Http\Request;
 
 use App\Models\Tenant;
 use App\Models\Floor;
+use App\Models\User;
+use App\Models\Location;
 
 class FloorController extends Controller
 {
     public function create(Request $request, $tenant_slug){
         $user = $request->user();
 
-        if($user->user_type_id === 3){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_floor'])->get();
+
+        $permission = $userType[0]['user_type']['create_floor'];
+
+        if($user->user_type_id !== 1 && $permission !== "yes"){
+            return response()->json(['message' => 'You are not authorized'], 403);
         }
+
+        Location::where('id', $request->location_id)->firstOrFail();
+
+        $verifyName = Floor::where('name', $request->name)->where('location_id', $request->location_id)->first();
+
+        if($verifyName){
+            return response()->json(['message' => 'You have already named a floor "'.$request->name.'" in this location'], 422);
+        }
+
         //validate request data
         $validator = Validator::make($request->all(), [
            'name' => 'required|string|max:255',
+           'location_id' => 'required|numeric|gte:1',
         ]);
  
         if($validator->fails()){
          return response()->json(['error' => $validator->errors()], 422);
         }
 
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
- 
         //retrieve Validated data from the validator instance
         $validatedData = $validator->validated();
         
         $floor = Floor::create([
          'name' => htmlspecialchars($validatedData['name'], ENT_QUOTES, 'UTF-8'),
+         'location_id' => $request->location_id,
+         'created_by_user_id' => $user->id,
          'tenant_id' => $tenant->id,
         ]);
  
@@ -45,19 +64,66 @@ class FloorController extends Controller
         return response()->json(['message'=> 'Floor successfully created', 'location'=>$floor], 201);        
     }
 
-    public function index($tenant_slug){
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
-         //fetch all categories
-        $floors = Floor::where('tenant_id', $tenant->id)->get();
+    public function index($tenant_slug, $location_id){
+
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $locations = Floor::where('tenant_id', $tenant->id)
+        ->where('location_id', $location_id)
+        ->where('deleted', 'no')
+        ->with([
+            'tenants',
+            'createdBy:id,first_name,last_name',
+            'deletedBy:id,first_name,last_name',
+            'spaces' => function ($query) {
+                $query->where('deleted', 'no') // Exclude deleted spaces
+                    ->with('spots'); // Load related spots
+            }
+        ])
+        ->paginate(10);
  
-        return response()->json(['data'=>$floors], 201);
+        return response()->json(['data'=>$locations], 200);
+    }
+
+    public function fetchOne($tenant_slug, $id){
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $floor = Floor::where('tenant_id', $tenant->id)
+        ->where('deleted', 'no')
+        ->where('id', $id)
+        ->with([
+            'tenants',
+            'createdBy:id,first_name,last_name',
+            'deletedBy:id,first_name,last_name',
+            'spaces' => function ($query) {
+                $query->where('deleted', 'no')
+                    ->with('spots');
+            }
+        ])
+        ->firstOrFail();
+
+        return response()->json(['data'=>$floor], 200);
+
+
     }
 
     public function update(Request $request, $tenant_slug, $id){
         $user = $request->user();
 
-        if($user->user_type_id === 3){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,update_floor'])->get();
+
+        $permission = $userType[0]['user_type']['update_floor'];
+
+        if($user->user_type_id !== 1 && $permission !== "yes"){
+            return response()->json(['message' => 'You are not authorized'], 403);
+        }
+
+        $verifyName = Floor::where('name', $request->name)->where('location_id', $request->location_id)->first();
+
+        if($verifyName){
+            return response()->json(['message' => 'You have already named a floor "'.$request->name.'" in this location'], 422);
         }
          //validate request data
         $validator = Validator::make($request->all(), [
@@ -69,7 +135,7 @@ class FloorController extends Controller
             return response()->json(['errors'=>$validator->errors()], 422);
         }
 
-        //using the provided id, find the category to be updated
+        //using the provided id, find the Floor to be updated
         $floor = Floor::findOrFail($id);
 
         //retrieve validatedData from the validator instance
@@ -82,19 +148,25 @@ class FloorController extends Controller
 
         //If update fails, send response
         if(!$response){
-            return response()->json(['message'=>'Something went wrong, please try again later'], 422);
+            return response()->json(['message'=>'Something went wrong, please try again later'], 500);
         }
 
         //If update is successful, send response
         return response()->json(['message'=> 'floor updated successfully', 'data'=>$floor], 201);
     }
 
-    public function destroy(Request $request){
+    public function destroy(Request $request, $tenant_slug){
 
         $user = $request->user();
 
-        if($user->user_type_id === 3){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,delete_floor'])->get();
+
+        $permission = $userType[0]['user_type']['delete_floor'];
+
+        if($user->user_type_id !== 1 && $permission !== "yes"){
+            return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate the ID
         $validator = Validator::make($request->all(), [
@@ -108,8 +180,11 @@ class FloorController extends Controller
         //find the category to be deleted using the Id
         $floor = Floor::findOrFail($request->id);
 
-        //delete the category
-        $response = $floor->delete();
+        $floor->deleted = "yes";
+        $floor->deleted_by_user_id = $user->id;
+        $floor->deleted_at = now();
+
+        $response = $floor->save();
 
         //return response if delete fails
         if(!$response){
@@ -118,5 +193,16 @@ class FloorController extends Controller
  
         //return response if delete is successful
         return response()->json(['message'=> 'Floor deleted successfully'], 200);
+    }
+
+    private function checkTenant($tenant_slug){
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
+
+        return $tenant;
+
     }
 }

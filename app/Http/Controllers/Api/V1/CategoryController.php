@@ -20,6 +20,8 @@ class CategoryController extends Controller
         //validate request data
         $validator = Validator::make($request->all(), [
            'category' => 'required|string|max:255',
+           'location_id' => 'required|numeric|gte:1',
+           'space_id' => 'required|numeric|gte:1',
         ]);
  
         if($validator->fails()){
@@ -32,8 +34,10 @@ class CategoryController extends Controller
         $validatedData = $validator->validated();
         
         $category = Category::create([
-         'category' => htmlspecialchars($validatedData['category'], ENT_QUOTES, 'UTF-8'),
-         'tenant_id' => $tenant->id,
+            'category' => htmlspecialchars($validatedData['category'], ENT_QUOTES, 'UTF-8'),
+            'location_id' => htmlspecialchars($validatedData['location_id'], ENT_QUOTES, 'UTF-8'),
+            'space_id' => htmlspecialchars($validatedData['space_id'], ENT_QUOTES, 'UTF-8'),
+            'tenant_id' => $tenant->id,
         ]);
  
         //return response if create fails
@@ -49,12 +53,19 @@ class CategoryController extends Controller
      public function index($tenant_slug){
         $tenant = Tenant::where('slug', $tenant_slug)->first();
          //fetch all categories
-         $categories = Category::where('tenant_id', $tenant->id)->get();
+        //  $categories = Category::where('tenant_id', $tenant->id)->orWhereNull('tenant_id')->get();
+
+        $categories = Category::where(function ($query) use ($tenant) {
+            $query->where('tenant_id', $tenant->id)
+                  ->orWhereNull('tenant_id');
+        })->get();
  
          return response()->json(['data'=>$categories], 201);
      }
  
     public function update(Request $request, $tenant_slug, $id){
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
         $user = $request->user();
 
         if($user->user_type_id == 3){
@@ -62,7 +73,9 @@ class CategoryController extends Controller
         }
          //validate request data
          $validator = Validator::make($request->all(), [
-             'category' => 'required|string|max:255',
+            'category' => 'required|string|max:255',
+            'location_id' => 'required|numeric|gte:1',
+            'space_id' => 'required|numeric|gte:1',
           ]);
  
          //send response if validation fails
@@ -72,12 +85,18 @@ class CategoryController extends Controller
  
          //using the provided id, find the category to be updated
          $category = Category::findOrFail($id);
+
+        if($category->tenant_id !== $tenant->id){
+            return response()->json(['message' => 'You are not authorized'], 403);
+        } 
  
          //retrieve validatedData from the validator instance
          $validatedData = $validator->validated();
  
          //sanitize and save validated request data
          $category->category = htmlspecialchars($validatedData['category'], ENT_QUOTES, 'UTF-8');
+         $category->location_id = htmlspecialchars($validatedData['location_id'], ENT_QUOTES, 'UTF-8');
+         $category->space_id = htmlspecialchars($validatedData['space_id'], ENT_QUOTES, 'UTF-8');
  
          $response = $category->save();
  
@@ -90,12 +109,14 @@ class CategoryController extends Controller
          return response()->json(['message'=> 'Category updated successfully', 'data'=>$category], 201);
     }
  
-    public function destroy(Request $request){
+    public function destroy(Request $request, $tenant_slug){
+
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
 
         $user = $request->user();
 
-        if($user->user_type_id == 3){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        if($user->user_type_id !== 3){
+            return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate the ID
         $validator = Validator::make($request->all(), [
@@ -108,6 +129,10 @@ class CategoryController extends Controller
 
         //find the category to be deleted using the Id
         $category = Category::findOrFail($request->id);
+
+        if($category->tenant_id !== $tenant->id){
+            return response()->json(['message' => 'You are not authorized'], 403);
+        }
 
         //delete the category
         $response = $category->delete();

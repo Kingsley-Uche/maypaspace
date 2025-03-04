@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
-            $table->string('role');
+            $table->string('role')->unique();
             $table->enum('create_tenant', ['yes', 'no'])->default('no');
             $table->enum('update_tenant', ['yes', 'no'])->default('no');
             $table->enum('delete_tenant', ['yes', 'no'])->default('no');

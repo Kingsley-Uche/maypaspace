@@ -8,14 +8,22 @@ use Illuminate\Support\Facades\Validator;
 
 use App\Models\Tenant;
 use App\Models\Location;
+use App\Models\User;
 
 class LocationController extends Controller
 {
     public function create(Request $request, $tenant_slug){
         $user = $request->user();
 
-        if($user->user_type_id !== 1){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_location'])->get();
+
+        $permission = $userType[0]['user_type']['create_location'];
+
+        if($user->user_type_id !== 1 && $permission !== "yes"){
+            return response()->json(['message' => 'You are not authorized'], 403);
         }
         //validate request data
         $validator = Validator::make($request->all(), [
@@ -27,8 +35,6 @@ class LocationController extends Controller
         if($validator->fails()){
          return response()->json(['error' => $validator->errors()], 422);
         }
-
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
  
         //retrieve Validated data from the validator instance
         $validatedData = $validator->validated();
@@ -37,6 +43,7 @@ class LocationController extends Controller
          'name' => htmlspecialchars($validatedData['name'], ENT_QUOTES, 'UTF-8'),
          'state' => htmlspecialchars($validatedData['state'], ENT_QUOTES, 'UTF-8'),
          'address' => htmlspecialchars($validatedData['address'], ENT_QUOTES, 'UTF-8'),
+         'created_by_user_id' => $user->id,
          'tenant_id' => $tenant->id,
         ]);
  
@@ -51,18 +58,36 @@ class LocationController extends Controller
     }
 
     public function index($tenant_slug){
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
-         //fetch all categories
-        $locations = Location::where('tenant_id', $tenant->id)->get();
+
+        $tenant = $this->checkTenant($tenant_slug);
+        
+         //fetch all Locations
+        $locations = Location::where('tenant_id', $tenant->id)->where('deleted', 'no')->with(['tenants','createdBy:id,first_name,last_name','deletedBy:id,first_name,last_name'])->paginate(10);
  
-        return response()->json(['data'=>$locations], 201);
+        return response()->json(['data'=>$locations], 200);
+    }
+
+    public function viewOne($tenant_slug, $id){
+
+        $tenant = $this->checkTenant($tenant_slug);
+        
+         //fetch all categories
+        $location = Location::where('id', $id)->where('tenant_id', $tenant->id)->where('deleted', 'no')->with(['tenants','createdBy:id,first_name,last_name','deletedBy:id,first_name,last_name'])->firstOrFail();
+ 
+        return response()->json(['data'=>$location], 200);
     }
 
     public function update(Request $request, $tenant_slug, $id){
         $user = $request->user();
 
-        if($user->user_type_id !== 1){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,update_location'])->get();
+
+        $permission = $userType[0]['user_type']['update_location'];
+
+        if($user->user_type_id !== 1 && $permission !== "yes"){
+            return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate request data
         $validator = Validator::make($request->all(), [
@@ -77,7 +102,10 @@ class LocationController extends Controller
         }
 
         //using the provided id, find the category to be updated
-        $location = Location::findOrFail($id);
+        $location = Location::where('id', $id)
+        ->where('deleted', 'no')
+        ->firstOrFail();
+
 
         //retrieve validatedData from the validator instance
         $validatedData = $validator->validated();
@@ -98,12 +126,18 @@ class LocationController extends Controller
         return response()->json(['message'=> 'Location updated successfully', 'data'=>$location], 201);
     }
 
-    public function destroy(Request $request){
+    public function destroy(Request $request, $tenant_slug){
 
         $user = $request->user();
 
-        if($user->user_type_id !== 1){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,delete_location'])->get();
+
+        $permission = $userType[0]['user_type']['delete_location'];
+
+        if($user->user_type_id !== 1 && $permission !== "yes"){
+            return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate the ID
         $validator = Validator::make($request->all(), [
@@ -118,7 +152,11 @@ class LocationController extends Controller
         $location = Location::findOrFail($request->id);
 
         //delete the category
-        $response = $location->delete();
+        $location->deleted = "yes";
+        $location->deleted_by_user_id = $user->id;
+        $location->deleted_at = now();
+
+        $response = $location->save();
 
         //return response if delete fails
         if(!$response){
@@ -126,7 +164,18 @@ class LocationController extends Controller
         }
  
         //return response if delete is successful
-        return response()->json(['message'=> 'Location deleted successfully'], 200);
+        return response()->json(['message'=> 'Location deleted successfully'], 204);
+    }
+
+    private function checkTenant($tenant_slug){
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
+
+        return $tenant;
+
     }
 
 }

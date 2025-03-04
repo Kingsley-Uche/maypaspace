@@ -30,6 +30,31 @@ class User extends Authenticatable
         'tenant_id',
     ];
 
+    public function user_type()
+    {
+        return $this->belongsTo(UserType::class, 'user_type_id');
+    }
+
+    public function createdLocations()
+    {
+        return $this->hasMany(Location::class, 'created_by_user_id');
+    }
+
+    public function deletedLocations()
+    {
+        return $this->hasMany(Location::class, 'deleted_by_user_id');
+    }
+
+    public function createdFloors()
+    {
+        return $this->hasMany(Floor::class, 'created_by_user_id');
+    }
+
+    public function deletedFloors()
+    {
+        return $this->hasMany(Floor::class, 'deleted_by_user_id');
+    }
+
     protected static function booted()
 {
     static::addGlobalScope(new TenantScope());

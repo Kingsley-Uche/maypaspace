@@ -1,22 +1,25 @@
 <?php
 
 namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
 use App\Models\Scopes\TenantScope;
 
-class Location extends Model
+use Illuminate\Database\Eloquent\Model;
+
+class Space extends Model
 {
     protected $fillable = [
-        'name',
-        'state',
-        'address',
+        'space_name',
+        'space_number',
+        'space_fee',
+        'space_category_id',
+        'location_id',
+        'floor_id',
         'tenant_id',
         'created_by_user_id',
         'deleted',
         'deleted_by_user_id',
         'deleted_at'
-      ];
+    ];
 
     public function createdBy()
     {
@@ -33,8 +36,16 @@ class Location extends Model
         return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
+    public function floor()
+    {
+        return $this->belongsTo(Floor::class);
+    }
 
-
+    public function spots()
+    {
+        return $this->hasMany(Spot::class);
+    }
+    
     protected static function booted()
     {
         static::addGlobalScope(new TenantScope());

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Mail; // Add this to use the Mail facade for sending emails
 use App\Mail\RegistrationMail; // Import the email verification mailable class
@@ -159,7 +160,11 @@ class SystemAdminFunctionsController extends Controller
         }
        // Validate request data
         $validator = Validator::make($request->all(), [
-            'company_name' => 'required|string|max:255|exists:tenants,company_name',
+            'company_name' => [
+                            'required',
+                            'string',
+                            Rule::unique('tenants', 'company_name')->ignore($id),
+                            ],
             'company_no_location' => 'required|numeric|gte:1',
             'company_countries' => 'required|array',
             'company_countries.*' => 'string',
