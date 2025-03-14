@@ -16,12 +16,14 @@ class RolesTableSeeder extends Seeder
     {
         DB::table("roles")->insert([
             [
+              'id' => 1,
               'role' => 'owner',
               'create_tenant'=> 'yes',
               'update_tenant'=> 'yes',
               'view_tenant'=> 'yes',
               'delete_tenant'=>'yes',
               'view_tenant_income'=> 'yes',
+              'create_plan' => 'yes',
             ]
         ]);
     }

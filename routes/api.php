@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\OwnerController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
+use App\Http\Controllers\Api\V1\UserTypeController;
 
 use App\Http\Middleware\EnsureAdmin;
 
@@ -94,6 +95,13 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/location/delete', [LocationController::class, 'destroy']);
         Route::get('/location/list-locations', [LocationController::class, 'index']);
         Route::get('/location/show/{id}', [LocationController::class, 'viewOne']);
+
+        //CRUD FOR USERTYPE
+        Route::post('/usertype/create', [UserTypeController::class, 'create']);
+        Route::post('/usertype/update/{id}', [UserTypeController::class, 'update']);
+        Route::post('/usertype/delete', [UserTypeController::class, 'destroy']);
+        Route::get('/usertype/list-user-types', [UserTypeController::class, 'viewAll']);
+        Route::get('/usertype/user-type/{id}', [UserTypeController::class, 'viewOne']);
 
         //CRUD for Floor
         Route::post('/floor/create', [FloorController::class, 'create']);

@@ -149,6 +149,7 @@ class OwnerController extends Controller
         'delete_tenant' => [Rule::in(['yes', 'no'])],
         'view_tenant' => [Rule::in(['yes', 'no'])],
         'view_tenant_income' => [Rule::in(['yes', 'no'])],
+        'create_plan' => [Rule::in(['yes', 'no'])],
        ]); 
 
         if ($validator->fails()) {
@@ -162,6 +163,7 @@ class OwnerController extends Controller
             'delete_tenant' => $request->delete_tenant,
             'view_tenant' => $request->view_tenant,
             'view_tenant_income' => $request->view_tenant_income,
+            'create_plan' => $request->create_plan,
         ]);
 
         if(!$role){
@@ -183,12 +185,17 @@ class OwnerController extends Controller
 
         // Validate request data
         $validator = Validator::make($request->all(), [
-            'role' => 'required|string|max:255|exists:roles,role',
+            'role' => [
+                'required',
+                'string',
+                Rule::unique('roles', 'role')->ignore($id),
+                ],
             'create_tenant' => [Rule::in(['yes', 'no'])],
             'update_tenant' => [Rule::in(['yes', 'no'])],
             'delete_tenant' => [Rule::in(['yes', 'no'])],
             'view_tenant' => [Rule::in(['yes', 'no'])],
             'view_tenant_income' => [Rule::in(['yes', 'no'])],
+            'create_plan' => [Rule::in(['yes', 'no'])],
         ]); 
 
         if ($validator->fails()) {
@@ -222,6 +229,10 @@ class OwnerController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if($request->id == 1){
+            return response()->json(['message'=> 'You are not authorized to do this'], 403);
+        }
+
         $role = Role::findOrFail($request->id);
 
         $response = $role->delete();
@@ -234,12 +245,15 @@ class OwnerController extends Controller
     }
 
     public function viewRoles(){
-        $roles = Role::all();
+        $roles = Role::where('id', '!=', 1)->get();
 
         return response()->json(['data'=> $roles ],200);
     }
 
     public function viewRole($id){
+        if($id === 1){
+            return response()->json(['message'=> 'This role does not exist'], 403);  
+        }
         $role = Role::where('id', $id)->get();
 
         return response()->json(['data'=> $role],200);

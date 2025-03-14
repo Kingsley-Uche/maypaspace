@@ -12,4 +12,8 @@ class Tenant extends Model
     {
         return $this->hasMany(User::class);
     }
+    public function subscription()
+    {
+        return $this->belongsTo(Subscription::class, 'subscription_id');
+    }
 }

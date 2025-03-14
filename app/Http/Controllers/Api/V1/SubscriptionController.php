@@ -13,6 +13,7 @@ use App\Models\Tenant;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Models\Admin;
 
 use Carbon\Carbon;
 
@@ -74,7 +75,7 @@ class SubscriptionController extends Controller
     }
 
     public function viewSubscriptions(){
-        $subscriptions = Subscription::with('plan')->paginate(20);
+        $subscriptions = Subscription::with(['plan','tenant:id,company_name,subscription_id'])->paginate(20);
 
         return response()->json(['data'=> $subscriptions ],200);
     }
@@ -107,9 +108,12 @@ class SubscriptionController extends Controller
     }
 
     public function createPlan(Request $request){
+
         $admin = $request->user();
 
-        if($admin->role_id !== 1){
+        $role = Admin::where('id', $admin->id)->select('id', 'role_id')->with(['role:id,create_plan'])->get();
+
+        if($role[0]['role']['create_plan'] !== 'yes'){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -141,10 +145,11 @@ class SubscriptionController extends Controller
     public function updatePlan(Request $request, $id){
         $admin = $request->user();
 
-        if($admin->role_id !== 1){
+        $role = Admin::where('id', $admin->id)->select('id', 'role_id')->with(['role:id,create_plan'])->get();
+
+        if($role[0]['role']['create_plan'] !== 'yes'){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
-
         $plan = Plan::findOrFail($id);
 
         // Validate request data

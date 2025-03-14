@@ -19,6 +19,7 @@ return new class extends Migration
             $table->enum('delete_tenant', ['yes', 'no'])->default('no');
             $table->enum('view_tenant', ['yes', 'no'])->default('yes');
             $table->enum('view_tenant_income', ['yes', 'no'])->default('no');
+            $table->enum('create_plan', ['yes', 'no'])->default('no');
             $table->timestamps();
         });
     }

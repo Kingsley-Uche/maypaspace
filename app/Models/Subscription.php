@@ -14,4 +14,9 @@ class Subscription extends Model
     {
         return $this->belongsTo(Plan::class, 'plan_id');
     }
+
+    public function tenant()
+    {
+        return $this->hasOne(Tenant::class, 'subscription_id');
+    }
 }
