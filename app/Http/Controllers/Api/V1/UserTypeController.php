@@ -61,8 +61,11 @@ class UserTypeController extends Controller
 
         $userTypeNameCheck = UserType::where('user_type', $request->user_type)->where('tenant_id', $tenant->id)->get();
 
-        if(!$userTypeNameCheck->isEmpty()){
-            return response()->json(['error' => 'You have already created this user type'], 422);
+        $reservedUserType = ['Owner', 'Admin', 'Client']; 
+
+        //Check if user type has already been created by Tenant or If the user type being created has the name of any of the reserved usertypes.
+        if(!$userTypeNameCheck->isEmpty() || in_array(ucFirst($request->user_type), $reservedUserType)){
+            return response()->json(['error' => 'Usertype already exists'], 422);
         }
 
         // $userType = User::where('id', $user->id)->where('tenant_id',$tenant->id)->select('id', 'user_type_id,tenant_id')->get();
@@ -155,8 +158,11 @@ class UserTypeController extends Controller
 
         $userTypeNameCheck = UserType::where('user_type', $request->user_type)->where('tenant_id', $tenant->id)->whereNot('id', $id)->get();
 
-        if(!$userTypeNameCheck->isEmpty()){
-            return response()->json(['error' => 'You have already created this user type'], 422);
+        $reservedUserType = ['Owner', 'Admin', 'Client']; 
+
+        //Check if user type has already been created by Tenant or If the user type being created has the name of any of the reserved usertypes.
+        if(!$userTypeNameCheck->isEmpty() || in_array(ucFirst($request->user_type), $reservedUserType)){
+            return response()->json(['error' => 'Usertype already exists'], 422);
         }
 
         if ($validator->fails()) {
@@ -174,8 +180,8 @@ class UserTypeController extends Controller
         return response()->json(['message' => 'User Type Updated successfully', 'data'=> $user_type ],200);
     }
 
-    public function viewAll($tenant_slug){
-        // $user = $request->user();
+    public function viewAll(Request $request, $tenant_slug){
+        $user = $request->user();
 
         $tenant = Tenant::where('slug', $tenant_slug)->first();
 
@@ -183,7 +189,11 @@ class UserTypeController extends Controller
             return response()->json(['message' => 'Tenant not found'], 404);
         }
 
-        $usertypes = UserType::where('tenant_id', $tenant->id)->orWhere('tenant_id', null)->paginate(20); 
+        if($user->tenant_id !== $tenant->id){
+            return response()->json(['message'=> 'You are not authorized to do this'], 403);
+        }
+
+        $usertypes = UserType::where('tenant_id', $user->tenant_id)->orWhere('tenant_id', null)->paginate(20); 
 
         return response()->json(['data'=> $usertypes], 200);
         
@@ -216,6 +226,7 @@ class UserTypeController extends Controller
             return response()->json(['message' => 'Tenant not found'], 404);
         }
 
+        //this ensures only an owner can delete a user type
         if($user->user_type_id !== 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
@@ -229,13 +240,15 @@ class UserTypeController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        //this ensures an owner cannot be deleted
         if($request->id == 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
         $userType = UserType::findOrFail($request->id);
 
-        if($userType->tenant_id !== $tenant_slug){
+        //this ensures a tenant can only delete user types they created themselves
+        if($userType->tenant_id !== $tenant->id){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -245,6 +258,6 @@ class UserTypeController extends Controller
             return response()->json(['message'=> 'Failed to delete, try again later'], 500);
         }
 
-        return response()->json(['message'=> 'User Type deleted successfully'],204);
+        return response()->json($response,204);
     }
 }

@@ -19,15 +19,15 @@ return new class extends Migration
             $table->unsignedBigInteger('external_id')->nullable();
             $table->string('description')->nullable();
             $table->unsignedBigInteger('tenant_id');
-            $table->unsignedBigInteger('created_by_admin_id')->nullable();
+            $table->unsignedBigInteger('created_by_user_id')->nullable();
             $table->enum('deleted', ['yes', 'no'])->default('no');
-            $table->unsignedBigInteger('deleted_by_admin_id')->nullable();
+            $table->unsignedBigInteger('deleted_by_user_id')->nullable();
             $table->timestamp('deleted_at')->nullable();
             $table->timestamps();
 
             $table->foreign('tenant_id')->references('id')->on('tenants')->onDelete('CASCADE');
-            $table->foreign('created_by_admin_id')->references('id')->on('admins')->onDelete('SET NULL');
-            $table->foreign('deleted_by_admin_id')->references('id')->on('admins')->onDelete('SET NULL');
+            $table->foreign('created_by_user_id')->references('id')->on('users')->onDelete('SET NULL');
+            $table->foreign('deleted_by_user_id')->references('id')->on('users')->onDelete('SET NULL');
         });
     }
 

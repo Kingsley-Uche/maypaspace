@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\OwnerController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\UserTypeController;
+use App\Http\Controllers\Api\V1\BookSpotController;
 
 use App\Http\Middleware\EnsureAdmin;
 
@@ -106,11 +107,6 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/usertype/delete', [UserTypeController::class, 'destroy']);
         Route::get('/usertype/list-user-types', [UserTypeController::class, 'viewAll']);
         Route::get('/usertype/user-type/{id}', [UserTypeController::class, 'viewOne']);
-
-        //CRUD FOR TEAM
-        Route::post('/team/create', [TeamController::class, 'AddTeam']);
-        Route::post('/team/add-member', [TeamController::class, 'AddMember']);
-        Route::post('/team/update/{id}', [TeamController::class,'update']);
 
         //CRUD for Floor
         Route::post('/floor/create', [FloorController::class, 'create']);

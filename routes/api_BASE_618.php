@@ -75,10 +75,6 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
     
 
     Route::middleware('auth:sanctum')->group(function () {
-        Route::post('/spot/book', [BookSpotController::class, 'create']);  
-        Route::post('/spot/cancel', [BookSpotController::class, ' cancelBooking']);
-        Route::get('/spot/get', [BookSpotController::class, 'getBookings']);  
-
         Route::post('/logout', [UserAuthController::class, 'logout']);
 
         Route::post('/add-user', [UserFunctionsController::class, 'addUser']);
@@ -107,11 +103,6 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::get('/usertype/list-user-types', [UserTypeController::class, 'viewAll']);
         Route::get('/usertype/user-type/{id}', [UserTypeController::class, 'viewOne']);
 
-        //CRUD FOR TEAM
-        Route::post('/team/create', [TeamController::class, 'AddTeam']);
-        Route::post('/team/add-member', [TeamController::class, 'AddMember']);
-        Route::post('/team/update/{id}', [TeamController::class,'update']);
-
         //CRUD for Floor
         Route::post('/floor/create', [FloorController::class, 'create']);
         Route::post('/floor/update/{id}', [FloorController::class, 'update']);
@@ -138,7 +129,5 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/booking/update/{id}', [BookingController::class, 'update']);
         Route::post('/booking/delete', [BookingController::class, 'destroy']);
         Route::get('/booking/list-bookings', [BookingController::class, 'index']);
-        
     });
-
 });
