@@ -43,7 +43,7 @@ class UserAuthController extends Controller
 
             //If user is found but passwords don't match
 
-            if (!$user && !Hash::check($request->password, $user->password)) {
+            if (!$user || !Hash::check($request->password, $user->password)) {
                 return response()->json(['message' => 'Invalid credentials'], 404);
             }
 

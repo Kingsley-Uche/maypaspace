@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('team_id');
             $table->unsignedBigInteger('user_id');
-            $table->enum('deleted', ['yes', 'no'])->default('no');
+            $table->enum('manager', ['yes', 'no'])->default('no');
             $table->unsignedBigInteger('tenant_id');
             $table->timestamps();
 

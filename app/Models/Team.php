@@ -13,6 +13,7 @@ class Team extends Model
         'business_number',
         'external_id',
         'description',
+        'created_by_user_id',
         'tenant_id',
     ];
 
