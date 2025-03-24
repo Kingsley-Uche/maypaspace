@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\OwnerController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\UserTypeController;
+use App\Http\Controllers\Api\V1\BookSpotController;
 
 use App\Http\Middleware\EnsureAdmin;
 
@@ -75,6 +76,10 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
     
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/spot/book', [BookSpotController::class, 'create']);  
+        Route::post('/spot/cancel', [BookSpotController::class, ' cancelBooking']);
+        Route::get('/spot/get', [BookSpotController::class, 'getBookings']);  
+
         Route::post('/logout', [UserAuthController::class, 'logout']);
 
         Route::post('/add-user', [UserFunctionsController::class, 'addUser']);
@@ -129,5 +134,7 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/booking/update/{id}', [BookingController::class, 'update']);
         Route::post('/booking/delete', [BookingController::class, 'destroy']);
         Route::get('/booking/list-bookings', [BookingController::class, 'index']);
+        
     });
+
 });
