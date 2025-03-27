@@ -1,71 +1,131 @@
 <?php
+
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use App\Models\BookSpot;
-use App\Models\Spot;
+use App\Models\{BookSpot, Spot, Tenant, Location, User, Space};
 use Illuminate\Support\Facades\Auth;
-use Carbon\Carbon; // Import Carbon for date manipulation
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class BookSpotController extends Controller
 {
-    // Method to create a booking
-    public function Create(Request $request)
+    // Create a new booking
+    public function create(Request $request)
     {
-        // Validation rules
         $validator = Validator::make($request->all(), [
-            'start_time' => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
-            'end_time' => 'required|date_format:Y-m-d H:i:s|after_or_equal:start_time',
+            'start_time'    => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
+            'end_time'      => 'required|date_format:Y-m-d H:i:s|after_or_equal:start_time',
             'booked_for_user' => 'required|numeric|exists:users,id',
-            'spot_id' => 'required|numeric|exists:spots,id'
+            'spot_id'       => 'required|numeric|exists:spots,id',
+            'location_id'   => 'required|numeric|exists:locations,id',
+            'floor_id'      => 'required|numeric|exists:spaces,floor_id',
         ]);
-        
 
-        // Validate request data
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 422);
         }
 
-        $validatedData = $validator->validated();
-        // Check if the spot has already been booked for the given time
-        $status = BookSpot::where('spot_id', $validatedData['spot_id'])
-            ->where('end_time', '>=', Carbon::parse($validatedData['start_time']))
-            ->first();
+        $validated = $validator->validated();
+        $tenant = Auth::user();
 
-        if ($status) {
-            // Spot is already booked, return an error
+        $space = Space::where([
+            'tenant_id'   => $tenant->tenant_id,
+            'location_id' => $validated['location_id'],
+            'floor_id'    => $validated['floor_id']
+        ])->firstOrFail();
+
+        $existingBooking = BookSpot::where('spot_id', $validated['spot_id'])
+            ->where('end_time', '>=', $validated['start_time'])
+            ->exists();
+
+        if ($existingBooking) {
             return response()->json([
-                'error' => 'booked',
-                'message' => 'This spot is already booked until ' . Carbon::parse($status->end_time)->addMinute()->toDateTimeString()
+                'error'   => 'booked',
+                'message' => "Spot already booked until " . Carbon::parse($existingBooking->end_time)
+                    ->addMinute()
+                    ->toDateTimeString()
             ], 422);
         }
 
-        // Create a new booking
-        $booked = BookSpot::create([
-            'fee' => strip_tags($validatedData['fee']),
-            'start_time' => strip_tags($validatedData['start_time']),
-            'end_time' => strip_tags($validatedData['end_time']),
-            'booked_by_user' => Auth::user()->id, // The authenticated user making the booking
-            'user_id' => strip_tags($validatedData['booked_for_user']),
-            'spot_id' => strip_tags($validatedData['spot_id']),
-        ]);
+        DB::transaction(function () use ($validated, $space, $tenant) {
+            $booking = BookSpot::create([
+                'fee'           => $space->space_fee,
+                'start_time'    => $validated['start_time'],
+                'end_time'      => $validated['end_time'],
+                'booked_by_user' => $tenant->id,
+                'user_id'       => $validated['booked_for_user'],
+                'spot_id'       => $validated['spot_id'],
+            ]);
 
-        // Update the status in the Spot table to mark it as booked
-        Spot::where('id', $booked->spot_id)->update(['book_status' => 'yes']);
+            Spot::where('id', $booking->spot_id)->update(['book_status' => 'yes']);
+        });
 
-        // Return a successful booking response
-        return response()->json([
-            'message' => 'You successfully booked this space',
-            'booking' => $booked
-        ], 201);
+        return response()->json(['message' => 'Space successfully booked'], 201);
     }
 
-    // Method to cancel a booking
+    // Update an existing booking
+    public function update(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'start_time'    => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
+            'end_time'      => 'required|date_format:Y-m-d H:i:s|after_or_equal:start_time',
+            'booked_for_user' => 'required|numeric|exists:users,id',
+            'spot_id'       => 'required|numeric|exists:spots,id',
+            'floor_id'      => 'required|numeric|exists:spaces,floor_id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        $validated = $validator->validated();
+        $tenant = Auth::user();
+        
+        $booking = BookSpot::where('id', $validated['spot_id'])
+            ->where('booked_by_user', $tenant->id)
+            ->firstOrFail();
+        
+        $space = Space::where([
+            'tenant_id'   => $tenant->tenant_id,
+            'floor_id'    => $validated['floor_id']
+        ])->firstOrFail();
+
+        $existingBooking = BookSpot::where('spot_id', $validated['spot_id'])
+            ->where('id', '!=', $validated['spot_id']) // Exclude the current booking from the check
+            ->where('end_time', '>=', $validated['start_time'])
+            ->exists();
+
+        if ($existingBooking) {
+            return response()->json([
+                'error'   => 'booked',
+                'message' => "Spot already booked until " . Carbon::parse($existingBooking->end_time)
+                    ->addMinute()
+                    ->toDateTimeString()
+            ], 422);
+        }
+
+        DB::transaction(function () use ($validated, $booking, $space) {
+            $booking->update([
+                'fee'           => $space->space_fee,
+                'start_time'    => $validated['start_time'],
+                'end_time'      => $validated['end_time'],
+                'user_id'       => $validated['booked_for_user'],
+                'spot_id'       => $validated['spot_id'],
+                'spot_id'       => $validated['spot_id'],
+            ]);
+
+            Spot::where('id', $booking->spot_id)->update(['book_status' => 'yes']);
+        });
+
+        return response()->json(['message' => 'Booking successfully updated'], 200);
+    }
+
+    // Cancel an existing booking
     public function cancelBooking(Request $request)
     {
-        // Validate the booking ID
         $validator = Validator::make($request->all(), [
             'book_spot_id' => 'required|numeric|exists:book_spots,id',
         ]);
@@ -74,45 +134,92 @@ class BookSpotController extends Controller
             return response()->json(['error' => $validator->errors()], 422);
         }
 
-        // Find the booking based on the ID
-        $booking = BookSpot::find($request->booking_id);
+        $userId = Auth::id();
 
-        // Check if the authenticated user is either the one who booked or the one it was booked for
-        if (!$booking || ($booking->booked_by_user !== Auth::user()->id && $booking->user_id !== Auth::user()->id)) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        $booking = BookSpot::where('id', $request->book_spot_id)
+            ->where(function ($query) use ($userId) {
+                $query->where('booked_by_user', $userId)
+                      ->orWhere('user_id', $userId);
+            })
+            ->with('spot')
+            ->firstOrFail();
 
-        // Cancel the booking (delete it)
-        $booking->delete();
+        DB::transaction(function () use ($booking) {
+            $booking->delete();
+            Spot::where('id', $booking->spot_id)->update(['book_status' => 'no']);
+        });
 
-        // Update the corresponding spot status to 'no' (available)
-        Spot::where('id', $booking->spot_id)->update(['book_status' => 'no']);
-
-        // Return a success message
         return response()->json(['message' => 'Booking successfully canceled'], 200);
     }
+
+    // get bookings using time range
     public function getBookings(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'booking_type' => 'required|string|in:valid,all',
+            'booking_type' => 'required|string|in:valid,all,expired,past',
+            'start_time'   => 'required_with:end_time|date_format:Y-m-d H:i:s',
+            'end_time'     => 'required_with:start_time|date_format:Y-m-d H:i:s|after:start_time',
         ]);
     
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 422);
         }
     
-        $validatedData = $validator->validated();
-        
-        if ($validatedData['booking_type'] === 'valid') {
-            $bookings = BookSpot::where('end_time', '>=', Carbon::now())
-                ->orderBy('id', 'DESC')
-                ->paginate(15);
-        } elseif ($validatedData['booking_type'] === 'all') {
-            $bookings = BookSpot::orderBy('id', 'DESC')
-                ->paginate(15);
+        $validated = $validator->validated();
+        $tenantId = Auth::user()->tenant_id;
+    
+        $query = BookSpot::with([
+            'spot' => function ($query) {
+                $query->select('id', 'book_status', 'space_id', 'location_id', 'floor_id', 'tenant_id');
+            },
+            'spot.space' => function ($query) {
+                $query->select('id', 'space_name',  'space_fee', 'space_category_id', 'tenant_id');
+            },
+            'spot.space.category' => function ($query) {
+                $query->select('id', 'category',  'tenant_id');
+            }
+        ])
+        ->join('spots', 'book_spots.spot_id', '=', 'spots.id')
+        ->join('spaces', 'spots.space_id', '=', 'spaces.id')
+        ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
+        ->where('spaces.tenant_id', $tenantId)
+        ->select(
+            'book_spots.id', 
+            'book_spots.start_time', 
+            'book_spots.end_time', 
+            'book_spots.fee', 
+            'book_spots.user_id', 
+            'book_spots.spot_id', 
+            'book_spots.created_at'
+        );
+    
+        switch ($validated['booking_type']) {
+            case 'valid':
+                $query->where('book_spots.end_time', '>=', Carbon::now());
+                break;
+    
+            case 'expired':
+                $query->where('book_spots.end_time', '<', Carbon::now());
+                break;
+    
+            case 'past':
+                if (!$request->has('start_time') || !$request->has('end_time')) {
+                    return response()->json([
+                        'error' => 'Both start_time and end_time are required for past bookings'
+                    ], 422);
+                }
+                $query->whereBetween('book_spots.start_time', [
+                    $validated['start_time'],
+                    $validated['end_time']
+                ]);
+                break;
+    
+            case 'all':
+                break;
         }
+    
+        $bookings = $query->orderByDesc('book_spots.id')->paginate(15);
     
         return response()->json(['data' => $bookings], 200);
     }
-    
 }

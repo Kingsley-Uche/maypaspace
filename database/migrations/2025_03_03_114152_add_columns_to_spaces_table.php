@@ -15,7 +15,7 @@ return new class extends Migration
             $table->unsignedBigInteger('space_fee')->after('floor_id')->nullable();
             $table->unsignedBigInteger('space_category_id')->after('space_fee')->nullable();
 
-            $table->foreign('space_category_id')->references('id')->on('spaces')->onDelete('CASCADE');
+            $table->foreign('space_category_id')->references('id')->on('categories')->onDelete('CASCADE');
         });
     }
 

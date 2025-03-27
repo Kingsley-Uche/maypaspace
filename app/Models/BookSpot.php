@@ -16,6 +16,7 @@ class BookSpot extends Model
         'booked_by_user',
         'fee',
         'user_id',
+        'spot_id',
     ];
 
 
@@ -27,4 +28,10 @@ class BookSpot extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function spot()
+    {
+        return $this->belongsTo(Spot::class);
+    }
+   
 }

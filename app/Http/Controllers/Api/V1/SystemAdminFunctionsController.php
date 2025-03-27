@@ -9,11 +9,10 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Mail; // Add this to use the Mail facade for sending emails
 use App\Mail\RegistrationMail; // Import the email verification mailable class
 use Illuminate\Http\Request;
-
 use App\Models\User;
 use App\Models\Tenant;
 use App\Models\Admin;
-use App\Model\UserType;
+use App\Models\UserType;
 class SystemAdminFunctionsController extends Controller
 {
     public function createTenant(Request $request){

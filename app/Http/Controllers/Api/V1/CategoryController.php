@@ -21,7 +21,6 @@ class CategoryController extends Controller
         $validator = Validator::make($request->all(), [
            'category' => 'required|string|max:255',
            'location_id' => 'required|numeric|gte:1',
-           'space_id' => 'required|numeric|gte:1',
         ]);
  
         if($validator->fails()){
@@ -36,7 +35,6 @@ class CategoryController extends Controller
         $category = Category::create([
             'category' => htmlspecialchars($validatedData['category'], ENT_QUOTES, 'UTF-8'),
             'location_id' => htmlspecialchars($validatedData['location_id'], ENT_QUOTES, 'UTF-8'),
-            'space_id' => htmlspecialchars($validatedData['space_id'], ENT_QUOTES, 'UTF-8'),
             'tenant_id' => $tenant->id,
         ]);
  
@@ -75,7 +73,6 @@ class CategoryController extends Controller
          $validator = Validator::make($request->all(), [
             'category' => 'required|string|max:255',
             'location_id' => 'required|numeric|gte:1',
-            'space_id' => 'required|numeric|gte:1',
           ]);
  
          //send response if validation fails

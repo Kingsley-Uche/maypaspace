@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\OwnerController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\UserTypeController;
-
+use App\Http\Controllers\Api\V1\BookSpotController;
 use App\Http\Middleware\EnsureAdmin;
 
 Route::prefix('system-admin')->group(function(){
@@ -78,6 +78,7 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/spot/book', [BookSpotController::class, 'create']);  
         Route::post('/spot/cancel', [BookSpotController::class, ' cancelBooking']);
         Route::get('/spot/get', [BookSpotController::class, 'getBookings']);  
+        Route::post('/spot/update', [BookSpotController::class, 'update']);  
 
         Route::post('/logout', [UserAuthController::class, 'logout']);
 
