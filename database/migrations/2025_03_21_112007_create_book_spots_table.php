@@ -18,15 +18,21 @@ return new class extends Migration
             $table->unsignedBigInteger('booked_by_user')->nullable();
             $table->decimal('fee', 12, 2);
             $table->unsignedBigInteger('user_id'); 
-            $table->unsignedBigInteger('spot_id'); // Add the spot_id column
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade'); 
+            $table->unsignedBigInteger('spot_id');
+            $table->unsignedBigInteger('booked_ref_id');
+            
+            // Set foreign key constraints with cascade delete
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('spot_id')->references('id')->on('spots')->onDelete('cascade'); 
             $table->foreign('booked_by_user')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('booked_ref_id')->references('id')->on('booked_refs')->onDelete('cascade');
+
+            // Add soft deletes and timestamps
             $table->softDeletes();
             $table->timestamps();
         });
     }
-    
+
     /**
      * Reverse the migrations.
      */

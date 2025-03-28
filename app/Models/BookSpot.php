@@ -17,6 +17,7 @@ class BookSpot extends Model
         'fee',
         'user_id',
         'spot_id',
+        'booked_ref_id',
     ];
 
 
@@ -33,5 +34,13 @@ class BookSpot extends Model
     {
         return $this->belongsTo(Spot::class);
     }
+    public function bookedRef()
+    {
+        return $this->belongsTo(BookedRef::class, 'booked_ref_id');
+    }
    
+    protected $casts = [
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
+    ];
 }

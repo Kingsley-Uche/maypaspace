@@ -34,6 +34,10 @@ class User extends Authenticatable
     {
         return $this->belongsTo(UserType::class, 'user_type_id');
     }
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
 
     public function createdLocations()
     {

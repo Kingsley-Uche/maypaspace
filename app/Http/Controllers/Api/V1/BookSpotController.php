@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use App\Models\{BookSpot, Spot, Tenant, Location, User, Space};
+use App\Models\{BookSpot, Spot, Tenant, Location, User, Space,BookedRef};
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -15,6 +15,7 @@ class BookSpotController extends Controller
     // Create a new booking
     public function create(Request $request)
     {
+        // Validate the input data
         $validator = Validator::make($request->all(), [
             'start_time'    => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
             'end_time'      => 'required|date_format:Y-m-d H:i:s|after_or_equal:start_time',
@@ -23,24 +24,27 @@ class BookSpotController extends Controller
             'location_id'   => 'required|numeric|exists:locations,id',
             'floor_id'      => 'required|numeric|exists:spaces,floor_id',
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json(['error' => $validator->errors()], 422);
         }
-
+    
         $validated = $validator->validated();
-        $tenant = Auth::user();
-
+        $loggedUser = Auth::user();
+    
+        // Fetch space details with indexing for better performance
         $space = Space::where([
-            'tenant_id'   => $tenant->tenant_id,
+            'tenant_id'   => $loggedUser->tenant_id,
             'location_id' => $validated['location_id'],
             'floor_id'    => $validated['floor_id']
         ])->firstOrFail();
-
+    
+        // Fetch existing booking and check for conflicts with detailed info
         $existingBooking = BookSpot::where('spot_id', $validated['spot_id'])
             ->where('end_time', '>=', $validated['start_time'])
-            ->exists();
-
+            ->orderBy('end_time', 'desc')
+            ->first(); // Retrieve booking instead of using exists()
+    
         if ($existingBooking) {
             return response()->json([
                 'error'   => 'booked',
@@ -49,22 +53,42 @@ class BookSpotController extends Controller
                     ->toDateTimeString()
             ], 422);
         }
-
-        DB::transaction(function () use ($validated, $space, $tenant) {
-            $booking = BookSpot::create([
-                'fee'           => $space->space_fee,
-                'start_time'    => $validated['start_time'],
-                'end_time'      => $validated['end_time'],
-                'booked_by_user' => $tenant->id,
-                'user_id'       => $validated['booked_for_user'],
-                'spot_id'       => $validated['spot_id'],
-            ]);
-
-            Spot::where('id', $booking->spot_id)->update(['book_status' => 'yes']);
-        });
-
+    
+        // Perform transaction with exception handling
+        try {
+            DB::transaction(function () use ($validated, $space, $loggedUser) {
+                // Generate booking reference
+                $booking_ref = new BookedRef();
+                $booking_ref->booked_ref = $booking_ref->generateRef($loggedUser->tenant->slug);
+                $booking_ref->booked_by_user = $loggedUser->id;
+                $booking_ref->user_id = $validated['booked_for_user'];
+                $booking_ref->spot_id = $validated['spot_id'];
+                $booking_ref->save();
+    
+                // Create the booking
+                $booking = BookSpot::create([
+                    'fee'           => $space->space_fee,
+                    'start_time'    => $validated['start_time'],
+                    'end_time'      => $validated['end_time'],
+                    'booked_by_user' => $loggedUser->id,
+                    'user_id'       => $validated['booked_for_user'],
+                    'spot_id'       => $validated['spot_id'],
+                    'booked_ref_id' => $booking_ref->id,
+                ]);
+    
+                // Update spot availability status
+                Spot::where('id', $booking->spot_id)->update(['book_status' => 'yes']);
+            });
+        } catch (\Exception $e) {
+            Log::error('Booking failed: ' . $e->getMessage()); // Log the error for debugging
+            return response()->json(['error' => 'Booking process failed. Please try again later.'], 500);
+         }
+         
+    
+        // Return success response
         return response()->json(['message' => 'Space successfully booked'], 201);
     }
+    
 
     // Update an existing booking
     public function update(Request $request)
@@ -177,6 +201,9 @@ class BookSpotController extends Controller
             },
             'spot.space.category' => function ($query) {
                 $query->select('id', 'category',  'tenant_id');
+            },
+            'bookedRef' => function ($query) {
+                $query->select('id', 'booked_ref');  // Select the correct fields from the booked_refs table
             }
         ])
         ->join('spots', 'book_spots.spot_id', '=', 'spots.id')
@@ -190,8 +217,10 @@ class BookSpotController extends Controller
             'book_spots.fee', 
             'book_spots.user_id', 
             'book_spots.spot_id', 
-            'book_spots.created_at'
+            'book_spots.created_at',
+            'book_spots.booked_ref_id'  // Add this to your select statement
         );
+        
     
         switch ($validated['booking_type']) {
             case 'valid':
