@@ -262,6 +262,7 @@ class BookSpotController extends Controller
                         'location_id' => $spot->location_id,
                         'location_name' => $spot->location->name,
                         'floor_id' => $spot->floor_id,
+                        'floor_name' => $spot->floor->name,
                     ];
                 }
             });
@@ -307,6 +308,7 @@ class BookSpotController extends Controller
                         'location_id' => $spot->location_id,
                         'location_name' => $spot->location->name,
                         'floor_id' => $spot->floor_id,
+                        'fllor_name' => $spot->floor->floor_name,
                     ];
                 }
             });

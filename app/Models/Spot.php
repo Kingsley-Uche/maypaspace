@@ -22,4 +22,8 @@ class Spot extends Model
     {
         return $this->belongsTo(Location::class, 'location_id');
     }
+    public function floor()
+    {
+        return $this->belongsTo(Floor::class, 'floor_id');
+    }
 }

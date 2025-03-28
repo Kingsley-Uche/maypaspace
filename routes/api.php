@@ -73,6 +73,7 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
     Route::post('/verify-otp', [UserAuthController::class,'verifyOtp']);
     Route::post('/change-password', [UserAuthController::class,'resetPassword']);
     Route::get('/get/spaces', [BookSpotController::class,'getFreeSpots']);
+    
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/spot/book', [BookSpotController::class, 'create']);  
