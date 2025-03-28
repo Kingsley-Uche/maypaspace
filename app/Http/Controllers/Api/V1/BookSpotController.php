@@ -222,4 +222,99 @@ class BookSpotController extends Controller
     
         return response()->json(['data' => $bookings], 200);
     }
+ 
+    public function getFreeSpots(Request $request, $tenant_slug)
+    {
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+        
+        if (!$tenant) {
+            return response()->json(['error' => 'workspace doesn\'t exist'], 404);
+        }
+        
+        $spotsByCategory = []; // Changed variable name to reflect grouping
+        Spot::where('spots.tenant_id', $tenant->id)
+            ->where('spots.book_status', 'no')
+            ->select('spots.id', 'spots.space_id', 'spots.location_id', 'spots.floor_id')
+            ->with(['location' => function($query) {
+                $query->select('id', 'name');
+            }])
+            ->with(['space' => function($query) {
+                $query->select('id', 'space_name', 'space_fee', 'space_category_id')
+                      ->with(['category' => function($query) {
+                          $query->select('id', 'category');
+                      }]);
+            }])
+            ->join('spaces', 'spots.space_id', '=', 'spaces.id')
+            ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
+            ->orderBy('categories.category')
+            ->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
+                foreach ($freeSpots as $spot) {
+                    $categoryName = $spot->space->category->category;
+                    // Initialize category array if it doesn't exist
+                    if (!isset($spotsByCategory[$categoryName])) {
+                        $spotsByCategory[$categoryName] = [];
+                    }
+                    // Add spot to its category
+                    $spotsByCategory[$categoryName][] = [
+                        'spot_id' => $spot->id,
+                        'space_name' => $spot->space->space_name,
+                        'space_fee' => $spot->space->space_fee,
+                        'location_id' => $spot->location_id,
+                        'location_name' => $spot->location->name,
+                        'floor_id' => $spot->floor_id,
+                    ];
+                }
+            });
+        
+        if (empty($spotsByCategory)) {
+            return response()->json(['message' => 'No free spots available'], 404);
+        }
+        
+        return response()->json(['data' => $spotsByCategory], 200);
+    }
+    public function getUnbookedSpots()
+{
+    $user = Auth::user();
+    
+    $spotsByCategory = []; // Changed variable name to reflect grouping
+        Spot::where('spots.tenant_id', $user->tenant_id)
+            ->where('spots.book_status', 'no')
+            ->select('spots.id', 'spots.space_id', 'spots.location_id', 'spots.floor_id')
+            ->with(['location' => function($query) {
+                $query->select('id', 'name');
+            }])
+            ->with(['space' => function($query) {
+                $query->select('id', 'space_name', 'space_fee', 'space_category_id')
+                      ->with(['category' => function($query) {
+                          $query->select('id', 'category');
+                      }]);
+            }])
+            ->join('spaces', 'spots.space_id', '=', 'spaces.id')
+            ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
+            ->orderBy('categories.category')
+            ->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
+                foreach ($freeSpots as $spot) {
+                    $categoryName = $spot->space->category->category;
+                    // Initialize category array if it doesn't exist
+                    if (!isset($spotsByCategory[$categoryName])) {
+                        $spotsByCategory[$categoryName] = [];
+                    }
+                    // Add spot to its category
+                    $spotsByCategory[$categoryName][] = [
+                        'spot_id' => $spot->id,
+                        'space_name' => $spot->space->space_name,
+                        'space_fee' => $spot->space->space_fee,
+                        'location_id' => $spot->location_id,
+                        'location_name' => $spot->location->name,
+                        'floor_id' => $spot->floor_id,
+                    ];
+                }
+            });
+        
+        if (empty($spotsByCategory)) {
+            return response()->json(['message' => 'No free spots available'], 404);
+        }
+        
+        return response()->json(['data' => $spotsByCategory], 200);
+}
 }

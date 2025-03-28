@@ -72,14 +72,14 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
     Route::post('/confirm-user', [UserAuthController::class,'sendOtp']);
     Route::post('/verify-otp', [UserAuthController::class,'verifyOtp']);
     Route::post('/change-password', [UserAuthController::class,'resetPassword']);
-    
+    Route::get('/get/spaces', [BookSpotController::class,'getFreeSpots']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/spot/book', [BookSpotController::class, 'create']);  
         Route::post('/spot/cancel', [BookSpotController::class, ' cancelBooking']);
         Route::get('/spot/get', [BookSpotController::class, 'getBookings']);  
         Route::post('/spot/update', [BookSpotController::class, 'update']);  
-
+        Route::get('/spot/available', [BookSpotController::class, 'getUnbookedSpots']);  
         Route::post('/logout', [UserAuthController::class, 'logout']);
 
         Route::post('/add-user', [UserFunctionsController::class, 'addUser']);
