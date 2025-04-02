@@ -15,7 +15,7 @@ return new class extends Migration
             $table->unsignedBigInteger('space_fee')->after('floor_id')->nullable();
             $table->unsignedBigInteger('space_category_id')->after('space_fee')->nullable();
 
-            $table->foreign('space_category_id')->references('id')->on('spaces')->onDelete('CASCADE');
+            $table->foreign('space_category_id')->references('id')->on('categories')->onDelete('CASCADE');
         });
     }
 
@@ -25,9 +25,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('spaces', function (Blueprint $table) {
-            $table->dropForeign(['space_fee']);
             $table->dropForeign(['space_category_id']);
 
+            $table->dropColumn(['space_fee']);
             $table->dropColumn(['space_category_id']);
         });
     }

@@ -8,21 +8,30 @@ use Illuminate\Http\Request;
 
 use App\Models\Category;
 use App\Models\Tenant;
+use App\Models\Location;
 
 class CategoryController extends Controller
 {
     public function create(Request $request, $tenant_slug){
         $user = $request->user();
 
-        if($user->user_type_id == 3){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        $tenant = $this->checkTenant($tenant_slug);
+
+        if($user->tenant_id !== $tenant->id){
+            return response()->json(['message' => 'You are not authorized'], 403); 
+        }
+
+        if($user->user_type_id !== 1 && $user->user_type_id !== 2){
+            return response()->json(['message' => 'You are not authorized'], 403);
         }
         //validate request data
         $validator = Validator::make($request->all(), [
            'category' => 'required|string|max:255',
-           'location_id' => 'required|numeric|gte:1',
-           'space_id' => 'required|numeric|gte:1',
+           'location_id' => 'required|numeric|gte:1|exists:locations,id',
+        //    'space_id' => 'required|numeric|gte:1',
         ]);
+
+        $check = Location::findOrFail($request->location_id);
  
         if($validator->fails()){
          return response()->json(['error' => $validator->errors()], 422);
@@ -36,7 +45,7 @@ class CategoryController extends Controller
         $category = Category::create([
             'category' => htmlspecialchars($validatedData['category'], ENT_QUOTES, 'UTF-8'),
             'location_id' => htmlspecialchars($validatedData['location_id'], ENT_QUOTES, 'UTF-8'),
-            'space_id' => htmlspecialchars($validatedData['space_id'], ENT_QUOTES, 'UTF-8'),
+            // 'space_id' => htmlspecialchars($validatedData['space_id'], ENT_QUOTES, 'UTF-8'),
             'tenant_id' => $tenant->id,
         ]);
  
@@ -68,14 +77,14 @@ class CategoryController extends Controller
 
         $user = $request->user();
 
-        if($user->user_type_id == 3){
-            return response()->json(['message' => 'You are not authorized'], 401);
+        if($user->user_type_id !== 1 || $user->user_type_id !== 2){
+            return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate request data
          $validator = Validator::make($request->all(), [
             'category' => 'required|string|max:255',
             'location_id' => 'required|numeric|gte:1',
-            'space_id' => 'required|numeric|gte:1',
+            // 'space_id' => 'required|numeric|gte:1',
           ]);
  
          //send response if validation fails
@@ -96,7 +105,7 @@ class CategoryController extends Controller
          //sanitize and save validated request data
          $category->category = htmlspecialchars($validatedData['category'], ENT_QUOTES, 'UTF-8');
          $category->location_id = htmlspecialchars($validatedData['location_id'], ENT_QUOTES, 'UTF-8');
-         $category->space_id = htmlspecialchars($validatedData['space_id'], ENT_QUOTES, 'UTF-8');
+        //  $category->space_id = htmlspecialchars($validatedData['space_id'], ENT_QUOTES, 'UTF-8');
  
          $response = $category->save();
  
@@ -115,7 +124,7 @@ class CategoryController extends Controller
 
         $user = $request->user();
 
-        if($user->user_type_id !== 3){
+        if($user->user_type_id !== 1 || $user->user_type_id !== 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate the ID
@@ -144,5 +153,16 @@ class CategoryController extends Controller
  
         //return response if delete is successful
         return response()->json(['message'=> 'Category deleted successfully'], 200);
+    }
+
+    private function checkTenant($tenant_slug){
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
+
+        return $tenant;
+
     }
 }

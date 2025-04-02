@@ -30,6 +30,11 @@ class User extends Authenticatable
         'tenant_id',
     ];
 
+    public function teams()
+    {
+        return $this->belongsToMany(Team::class, 'team_users');
+    }
+
     public function user_type()
     {
         return $this->belongsTo(UserType::class, 'user_type_id');

@@ -9,7 +9,6 @@ use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\LocationController;
 use App\Http\Controllers\Api\V1\FloorController;
 use App\Http\Controllers\Api\V1\SpaceController;
-use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\OwnerController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
@@ -105,9 +104,16 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::get('/usertype/user-type/{id}', [UserTypeController::class, 'viewOne']);
 
         //CRUD FOR TEAM
-        Route::post('/team/create', [TeamController::class, 'AddTeam']);
-        Route::post('/team/add-member', [TeamController::class, 'AddMember']);
+        Route::post('/team/create', [TeamController::class, 'addTeam']);
+        Route::post('/team/add-member', [TeamController::class, 'addMember']);
         Route::post('/team/update/{id}', [TeamController::class,'update']);
+        Route::post('/team/promote', [TeamController::class,'promoteUser']);
+        Route::get('/teams', [TeamController::class, 'viewAll']);
+        Route::get('/team/{id}', [TeamController::class, 'viewOne']);
+        Route::get('/team/members/{id}', [TeamController::class, 'viewTeamMembers']);
+        Route::get('/team/member/{teamId}/{userId}', [TeamController::class, 'viewTeamMember']);
+        Route::post('/team/member/delete/{teamId}', [TeamController::class, 'deleteMember']);
+        Route::post('/team/delete', [TeamController::class, 'deleteTeam']);
 
         //CRUD for Floor
         Route::post('/floor/create', [FloorController::class, 'create']);
@@ -115,12 +121,6 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/floor/delete', [FloorController::class, 'destroy']);
         Route::get('/floor/list-floors/{location_id}', [FloorController::class, 'index']);
         Route::get('/floor/show/{id}', [FloorController::class, 'fetchOne']);
-
-        //CRUD for Product
-        Route::post('/product/create', [ProductController::class, 'create']);
-        Route::post('/product/update/{id}', [ProductController::class, 'update']);
-        Route::post('/product/delete', [ProductController::class, 'destroy']);
-        Route::get('/product/list-products', [ProductController::class, 'index']);
 
         //CRUD FOR SPACE
         Route::post('/space/create', [SpaceController::class, 'create']);

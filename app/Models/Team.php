@@ -17,6 +17,22 @@ class Team extends Model
         'tenant_id',
     ];
 
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function taxes()
+    {
+        return $this->hasMany(TaxNumber::class, 'team_id');
+    }
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'team_users');
+    }
+
+
     protected static function booted()
     {
         static::addGlobalScope(new TenantScope());

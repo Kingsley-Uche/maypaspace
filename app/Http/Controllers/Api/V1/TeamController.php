@@ -17,7 +17,7 @@ use App\Models\TaxNumber;
 
 class TeamController extends Controller
 {
-    public function AddTeam(Request $request, $tenant_slug){
+    public function addTeam(Request $request, $tenant_slug){
         $user = $request->user();
 
         $manager = '';
@@ -82,14 +82,14 @@ class TeamController extends Controller
 
             User::findOrFail($request->manager);
 
-            $manager = $request->manager;
+            $manager = $request->manager; 
         }
 
         $team = Team::create([
             'company' => htmlspecialchars($request->company, ENT_QUOTES, 'UTF-8'),
             'department'=> htmlspecialchars($request->department, ENT_QUOTES, 'UTF-8'),
-            'business_number' => htmlspecialchars($request->business_id, ENT_QUOTES, 'UTF-8'),
-            'external_id' => htmlspecialchars($request->external_id, ENT_QUOTES, 'UTF-8'),
+            'business_number' => $request->business_id,
+            'external_id' => $request->external_id,
             'description' => htmlspecialchars($request->description, ENT_QUOTES, 'UTF-8'),
             'tenant_id' => $tenant->id,
             'created_by_user_id' => $user->id,
@@ -167,8 +167,8 @@ class TeamController extends Controller
 
         $team->company = $validatedData['company'];
         $team->department = $validatedData['department'];
-        $team->business_number = $validatedData['business_id'];
-        $team->external_id = $validatedData['external_id'];
+        $team->business_number = $request->business_id;
+        $team->external_id = $request->external_id;
         $team->description = $validatedData['description'];
 
         if($request->has('tax_name')){
@@ -295,6 +295,199 @@ class TeamController extends Controller
         }
 
         return response()->json(['message'=>'Member added successfully', 'data' => $teamUser], 201);
+    }
+
+    public function promoteUser(Request $request, $tenant_slug){
+        $user = $request->user();
+
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
+
+        if($userType[0]['user_type']['create_user'] !== 'yes' || $tenant->id != $user->tenant_id){
+            return response()->json(['message'=> 'You are not authorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'id' => 'required|numeric|gte:1|exists:users,id',
+            'team_id' => 'required|numeric|gte:1|exists:teams,id', 
+        ]);  
+        
+        if($validator->fails()){
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        $oldManager = TeamUser::where('team_id', $request->team_id)->where('manager', "yes")->first();
+
+        $oldManager->manager = "no";
+
+        $response = $oldManager->update();
+
+        if(!$response){
+            return response()->json(['message' => 'Could not demote current manager, please try again'], 500);
+        }
+
+        $new = User::findOrFail($request->id);
+
+        $newManager = TeamUser::where('team_id', $request->team_id)->where('user_id', $request->id)->first();
+
+        $newManager->manager = "yes";
+
+        $newResponse = $newManager->update();
+
+        if(!$newResponse){
+            return response()->json(['message' => 'Could not promote current manager, please try again'], 500); 
+        }
+
+        return response()->json(['message' => 'Manager changed successfully'], 200);
+
+    }
+
+    public function viewAll(Request $request, $tenant_slug){
+        $user = $request->user();
+
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
+
+        if($userType[0]['user_type']['create_user'] !== 'yes' || $tenant->id != $user->tenant_id){
+            return response()->json(['message'=> 'You are not authorized'], 403);
+        }
+
+        $teams = Team::where('tenant_id', $tenant->id)->where('deleted', 'no')->with(['creator', 'taxes'])->get();
+
+        return response()->json(['data', $teams]);
+    }
+
+    public function viewOne(Request $request, $tenant_slug, $id){
+        $user = $request->user();
+
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
+
+        if($userType[0]['user_type']['create_user'] !== 'yes' || $tenant->id != $user->tenant_id){
+            return response()->json(['message'=> 'You are not authorized'], 403);
+        }    
+
+        $team = Team::where('tenant_id', $tenant->id)->where('id', $id)->with(['creator', 'taxes'])->get();
+
+        return response()->json(['data', $team]);
+    }
+
+    public function viewTeamMembers(Request $request, $tenant_slug, $id){
+        $user = $request->user();
+
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
+
+        if($userType[0]['user_type']['create_user'] !== 'yes' || $tenant->id != $user->tenant_id){
+            return response()->json(['message'=> 'You are not authorized'], 403);
+        }  
+        
+        $teamMembers = TeamUser::where('team_id', $id)
+        ->with(['user', 'team'])
+        ->get();
+        return response()->json(['data'=>$teamMembers]);
+    }
+
+    public function viewTeamMember(Request $request, $tenant_slug, $teamId, $userId){
+        $user = $request->user();
+
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
+
+        if($userType[0]['user_type']['create_user'] !== 'yes' || $tenant->id != $user->tenant_id){
+            return response()->json(['message'=> 'You are not authorized'], 403);
+        }  
+
+        $teamMember = TeamUser::where('team_id', $teamId)
+        ->where('user_id', $userId)
+        ->with(['user', 'team'])
+        ->get();
+        return response()->json(['data'=>$teamMember]);
+    }
+
+    public function deleteMember(Request $request, $tenant_slug, $teamId){
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'id' => 'required|numeric|gte:1|exists:users,id',
+        ]);  
+
+        if($validator->fails()){
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
+
+        if($userType[0]['user_type']['create_user'] !== 'yes' || $tenant->id != $user->tenant_id){
+            return response()->json(['message'=> 'You are not authorized'], 403);
+        }  
+
+        $member = TeamUser::where('team_id', $teamId)->where('user_id', $request->id)->first();
+
+        if($member->manager == 'yes'){
+            return response()->json(['message'=> 'Cannot delete manager'], 422);
+        }
+
+        $response = $member->delete();
+
+        if(!$response){
+            return response()->json(['message'=> 'Something went wrong, try again'], 500); 
+        }
+
+        return response()->json(['message'=> 'Successfully deleted'], 204);
+
+    }
+
+    public function deleteTeam(Request $request, $tenant_slug){
+        $user = $request->user();
+
+        $validator = Validator::make($request->all(), [
+            'team_id' => 'required|numeric|gte:1|exists:teams,id',
+        ]);  
+
+        if($validator->fails()){
+            return response()->json(['error' => $validator->errors()], 422);
+        }
+
+        //We identify the tenant using slug
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
+
+        if($userType[0]['user_type']['create_user'] !== 'yes' || $tenant->id != $user->tenant_id){
+            return response()->json(['message'=> 'You are not authorized'], 403);
+        }  
+
+        //find the category to be deleted using the Id
+        $team = Team::findOrFail($request->team_id);
+
+        //delete the category
+        $team->deleted = "yes";
+        $team->deleted_by_user_id = $user->id;
+        $team->deleted_at = now();
+
+        $response = $team->save();
+
+        //return response if delete fails
+        if(!$response){
+            return response()->json(['message'=> 'Failed to delete, try again'], 422);
+        }
+ 
+        //return response if delete is successful
+        return response()->json(['message'=> 'Team deleted successfully'], 204);
     }
 
     private function checkTenant($tenant_slug){

@@ -14,6 +14,18 @@ class TeamUser extends Model
         'tenant_id',
     ];
 
+    protected $table = 'team_users'; 
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function team()
+    {
+        return $this->belongsTo(Team::class, 'team_id');
+    }
+
     protected static function booted()
     {
         static::addGlobalScope(new TenantScope());

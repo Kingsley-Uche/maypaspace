@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\Floor;
 use App\Models\User;
 use App\Models\Location;
+use App\Models\Category;
 use App\Models\Space;
 use App\Models\Spot;
 
@@ -19,7 +20,7 @@ class SpaceController extends Controller
         $user = $request->user();
 
         //We identify the tenant using slug
-        $tenant = $this->checkTenant($tenant_slug);
+        $tenant = $this->checkTenant($tenant_slug, $user);
 
         $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_space'])->get();
 
@@ -30,6 +31,8 @@ class SpaceController extends Controller
         }
 
         Location::where('id', $request->location_id)->firstOrFail();
+
+        Category::where('id', $request->space_category_id)->firstOrFail();
 
         Floor::where('id', $request->floor_id)->firstOrFail();
 
@@ -90,7 +93,7 @@ class SpaceController extends Controller
     public function update(Request $request, $tenant_slug, $id){
         $user = $request->user();
 
-        $tenant = $this->checkTenant($tenant_slug);
+        $tenant = $this->checkTenant($tenant_slug, $user);
 
         $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,update_space'])->get();
 
@@ -182,11 +185,15 @@ class SpaceController extends Controller
 
     }
 
-    private function checkTenant($tenant_slug){
+    private function checkTenant($tenant_slug, $user){
         $tenant = Tenant::where('slug', $tenant_slug)->first();
 
         if (!$tenant) {
             return response()->json(['message' => 'Tenant not found'], 404);
+        }
+
+        if($user->tenant_id !== $tenant->id){
+            return response()->json(['message' => 'You are not authorized'], 403); 
         }
 
         return $tenant;

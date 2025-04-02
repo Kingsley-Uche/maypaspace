@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::table('categories', function (Blueprint $table) {
             $table->unsignedBigInteger('location_id')->after('category')->nullable();
-            $table->unsignedBigInteger('space_id')->after('location_id')->nullable();
+            // $table->unsignedBigInteger('space_id')->after('location_id')->nullable();
 
             $table->foreign('location_id')->references('id')->on('locations')->onDelete('CASCADE');
-            $table->foreign('space_id')->references('id')->on('spaces')->onDelete('CASCADE');
+            // $table->foreign('space_id')->references('id')->on('spaces')->onDelete('CASCADE');
         });
     }
 
@@ -27,10 +27,10 @@ return new class extends Migration
     {
         Schema::table('categories', function (Blueprint $table) {
             $table->dropForeign(['location_id']);
-            $table->dropForeign(['space_id']);
+            // $table->dropForeign(['space_id']);
 
             $table->dropColumn(['location_id']);
-            $table->dropColumn(['space_id']);
+            // $table->dropColumn(['space_id']);
         });
     }
 };
