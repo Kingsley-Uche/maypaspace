@@ -329,6 +329,7 @@ class BookSpotController extends Controller
                     if (!isset($spotsByCategory[$categoryName])) {
                         $spotsByCategory[$categoryName] = [];
                     }
+                    
                     // Add spot to its category
                     $spotsByCategory[$categoryName][] = [
                         'spot_id' => $spot->id,
@@ -337,7 +338,7 @@ class BookSpotController extends Controller
                         'location_id' => $spot->location_id,
                         'location_name' => $spot->location->name,
                         'floor_id' => $spot->floor_id,
-                        'fllor_name' => $spot->floor->floor_name,
+                        'floor_name' => $spot->floor->name,
                     ];
                 }
             });
