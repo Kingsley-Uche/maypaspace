@@ -43,9 +43,11 @@ class Space extends Model
 
     public function spots()
     {
-        return $this->hasMany(Spot::class);
+        return $this->hasMany(Spot::class, 'space_id');
     }
-    
+    public function category(){
+        return $this->belongsTo(Category::class, 'space_category_id');
+    }
     protected static function booted()
     {
         static::addGlobalScope(new TenantScope());

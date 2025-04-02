@@ -16,6 +16,14 @@ class Spot extends Model
 
     public function space()
     {
-        return $this->belongsTo(Space::class);
+        return $this->belongsTo(Space::class, 'space_id');
+    }
+    public function location()
+    {
+        return $this->belongsTo(Location::class, 'location_id');
+    }
+    public function floor()
+    {
+        return $this->belongsTo(Floor::class, 'floor_id');
     }
 }
