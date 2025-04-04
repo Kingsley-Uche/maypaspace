@@ -36,15 +36,15 @@ class SpaceController extends Controller
 
         Floor::where('id', $request->floor_id)->firstOrFail();
 
-        $verifyName = Space::where('space_name', $request->name)->where('location_id', $request->location_id)->where('floor_id', $request->floor_id)->first();
+        $verifyName = Space::where('space_name', $request->space_name)->where('location_id', $request->location_id)->where('floor_id', $request->floor_id)->first();
 
         if($verifyName){
-            return response()->json(['message' => 'You have already named a Space "'.$request->name.'" in this floor and location'], 422);
+            return response()->json(['message' => 'You have already named a Space "'.$request->space_name.'" in this floor and location'], 422);
         }
 
         //validate request data
         $validator = Validator::make($request->all(), [
-           'name' => 'required|string|max:255',
+           'space_name' => 'required|string|max:255',
            'space_number' => 'required|numeric|gte:1',
            'location_id' => 'required|numeric|gte:1',
            'floor_id' => 'required|numeric|gte:1',
@@ -60,7 +60,7 @@ class SpaceController extends Controller
         $validatedData = $validator->validated();
         
         $space = Space::create([
-         'space_name' => htmlspecialchars($validatedData['name'], ENT_QUOTES, 'UTF-8'),
+         'space_name' => htmlspecialchars($validatedData['space_name'], ENT_QUOTES, 'UTF-8'),
          'space_number' => htmlspecialchars($validatedData['space_number'], ENT_QUOTES, 'UTF-8'),
          'space_fee' => htmlspecialchars($validatedData['space_fee'], ENT_QUOTES, 'UTF-8'),
          'space_category_id' => htmlspecialchars($validatedData['space_category_id'], ENT_QUOTES, 'UTF-8'),
@@ -113,8 +113,8 @@ class SpaceController extends Controller
         $validator = Validator::make($request->all(), [
             'space_name' => 'required|string|max:255',
             'space_number' => 'required|numeric|gte:1',
-            'location_id' => $request->location_id,
-            'floor_id' => $request->floor_id,
+            // 'location_id' => $request->location_id,
+            // 'floor_id' => $request->floor_id,
             'space_fee' => 'required|numeric|gte:1',
         ]);
 
@@ -133,8 +133,8 @@ class SpaceController extends Controller
         $space->space_name = htmlspecialchars($validatedData['space_name'], ENT_QUOTES, 'UTF-8');
         $space->space_number = htmlspecialchars($validatedData['space_number'], ENT_QUOTES, 'UTF-8');
         $space->space_fee = htmlspecialchars($validatedData['space_fee'], ENT_QUOTES, 'UTF-8');
-        $space->location_id = htmlspecialchars($validatedData['location_id'], ENT_QUOTES, 'UTF-8');
-        $space->floor_id = htmlspecialchars($validatedData['floor_id'], ENT_QUOTES, 'UTF-8');
+        // $space->location_id = $request->location_id;
+        // $space->floor_id = $request->floor_id;
 
         $response = $space->save();
 
@@ -149,7 +149,11 @@ class SpaceController extends Controller
 
     public function index($tenant_slug, $location_id, $floor_id){
 
-        $tenant = $this->checkTenant($tenant_slug);
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
 
         $spaces = Space::where('tenant_id', $tenant->id)
         ->where('location_id', $location_id)
@@ -167,7 +171,11 @@ class SpaceController extends Controller
     }
 
     public function fetchOne($tenant_slug, $id){
-        $tenant = $this->checkTenant($tenant_slug);
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
 
         $floor = Space::where('tenant_id', $tenant->id)
         ->where('deleted', 'no')
@@ -204,7 +212,7 @@ class SpaceController extends Controller
 
         $user = $request->user();
 
-        $tenant = $this->checkTenant($tenant_slug);
+        $tenant = $this->checkTenant($tenant_slug, $user);
 
         $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,delete_space'])->get();
 

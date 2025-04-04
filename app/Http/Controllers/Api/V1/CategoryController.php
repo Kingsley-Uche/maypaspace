@@ -31,7 +31,13 @@ class CategoryController extends Controller
         //    'space_id' => 'required|numeric|gte:1',
         ]);
 
-        $check = Location::findOrFail($request->location_id);
+        $locationCheck = Location::findOrFail($request->location_id);
+
+        $duplicateCheck = Category::where('category', $request->category)->where('location_id', $request->location_id)->first();
+
+        if($duplicateCheck){
+            return response()->json(['message' => 'You have already named a category "'.$request->category.'" in this location'], 422);
+        }
  
         if($validator->fails()){
          return response()->json(['error' => $validator->errors()], 422);
@@ -59,38 +65,52 @@ class CategoryController extends Controller
         
     }
  
-     public function index($tenant_slug){
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
-         //fetch all categories
-        //  $categories = Category::where('tenant_id', $tenant->id)->orWhereNull('tenant_id')->get();
+    public function index($tenant_slug){
+        $tenant = $this->checkTenant($tenant_slug);
 
         $categories = Category::where(function ($query) use ($tenant) {
             $query->where('tenant_id', $tenant->id)
-                  ->orWhereNull('tenant_id');
+                    ->orWhereNull('tenant_id');
         })->get();
- 
-         return response()->json(['data'=>$categories], 201);
-     }
+
+        return response()->json(['data'=>$categories], 201);
+    }
+
+    public function fetchCategoryByLocation($tenant_slug, $location){
+        $tenant = $this->checkTenant($tenant_slug);
+
+        $categories = Category::where(function ($query) use ($tenant, $location) {
+            $query->where('tenant_id', $tenant->id)->where('location_id', $location)
+                    ->orWhereNull('tenant_id');
+        })->get();
+
+        return response()->json(['data'=>$categories], 201);
+    }
  
     public function update(Request $request, $tenant_slug, $id){
         $tenant = Tenant::where('slug', $tenant_slug)->first();
 
         $user = $request->user();
 
-        if($user->user_type_id !== 1 || $user->user_type_id !== 2){
+        if($user->user_type_id !== 1 && $user->user_type_id !== 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate request data
          $validator = Validator::make($request->all(), [
             'category' => 'required|string|max:255',
             'location_id' => 'required|numeric|gte:1',
-            // 'space_id' => 'required|numeric|gte:1',
           ]);
  
          //send response if validation fails
          if($validator->fails()){
              return response()->json(['errors'=>$validator->errors()], 422);
          }
+
+        $duplicateCheck = Category::where('category', $request->category)->where('location_id', $request->location_id)->first();
+
+        if($duplicateCheck){
+            return response()->json(['message' => 'You have already named a category "'.$request->category.'" in this location'], 422);
+        }
  
          //using the provided id, find the category to be updated
          $category = Category::findOrFail($id);
@@ -105,14 +125,13 @@ class CategoryController extends Controller
          //sanitize and save validated request data
          $category->category = htmlspecialchars($validatedData['category'], ENT_QUOTES, 'UTF-8');
          $category->location_id = htmlspecialchars($validatedData['location_id'], ENT_QUOTES, 'UTF-8');
-        //  $category->space_id = htmlspecialchars($validatedData['space_id'], ENT_QUOTES, 'UTF-8');
  
          $response = $category->save();
  
          //If update fails, send response
-         if(!$response){
-             return response()->json(['message'=>'Something went wrong, please try again later'], 422);
-         }
+        if(!$response){
+            return response()->json(['message'=>'Something went wrong, please try again later'], 422);
+        }
  
          //If update is successful, send response
          return response()->json(['message'=> 'Category updated successfully', 'data'=>$category], 201);
@@ -124,7 +143,7 @@ class CategoryController extends Controller
 
         $user = $request->user();
 
-        if($user->user_type_id !== 1 || $user->user_type_id !== 2){
+        if($user->user_type_id !== 1 && $user->user_type_id !== 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate the ID

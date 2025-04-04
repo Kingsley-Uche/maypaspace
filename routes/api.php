@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\OwnerController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\UserTypeController;
+use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\BookSpotController;
 use App\Http\Middleware\EnsureAdmin;
 
@@ -93,6 +94,7 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/category/update/{id}', [CategoryController::class, 'update']);
         Route::post('/category/delete', [CategoryController::class, 'destroy']);
         Route::get('/category/list-categories', [CategoryController::class, 'index']);
+        Route::get('/category/list-category-by-location/{location}', [CategoryController::class, 'fetchCategoryByLocation']);
 
         //CRUD for Location
         Route::post('/location/create', [LocationController::class, 'create']);
