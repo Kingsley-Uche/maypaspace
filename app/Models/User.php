@@ -30,6 +30,11 @@ class User extends Authenticatable
         'tenant_id',
     ];
 
+    public function readNotifications()
+    {
+        return $this->belongsToMany(Notification::class, 'notification_reads')->withPivot('read_at')->withTimestamps();
+    }
+
     public function teams()
     {
         return $this->belongsToMany(Team::class, 'team_users');

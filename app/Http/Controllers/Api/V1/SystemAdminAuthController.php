@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use App\Mail\OtpMail;
@@ -150,10 +151,17 @@ class SystemAdminAuthController extends Controller
     public function changePassword(Request $request){
         $admin = $request->user();
 
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'current_password' => 'required',
             'new_password' => 'required|min:8|confirmed',
-        ]); 
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
         $admin = Admin::where('email', $admin->email)->first();
 
