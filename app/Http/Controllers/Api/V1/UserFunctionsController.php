@@ -340,4 +340,10 @@ class UserFunctionsController extends Controller
         return ["response" => $response, "user"=>$user];
 
     }
+    public function create_visitor_user($data,$tenant){
+        
+        $user =$this->completeCreate($data, $tenant);
+        return $user['user'];
+    }
+
 }

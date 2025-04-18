@@ -6,16 +6,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+
+
     /**
      * Run the migrations.
      */
     public function up(): void
     {
         Schema::table('spaces', function (Blueprint $table) {
-            $table->unsignedBigInteger('space_fee')->after('floor_id')->nullable();
-            $table->unsignedBigInteger('space_category_id')->after('space_fee')->nullable();
-
-            $table->foreign('space_category_id')->references('id')->on('categories')->onDelete('CASCADE');
+            $table->decimal('space_fee')->nullable()->after('floor_id');
+            $table->unsignedBigInteger('min_space_discount_time')->nullable()->after('space_fee');
+            $table->unsignedBigInteger('space_discount')->nullable()->after('min_space_discount_time');
+            $table->unsignedBigInteger('space_category_id')->nullable()->after('space_discount');
+            $table->foreign('space_category_id')
+                  ->references('id')
+                  ->on('categories')
+                  ->onDelete('cascade');
         });
     }
 
@@ -25,10 +31,14 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('spaces', function (Blueprint $table) {
+            // Drop foreign key before dropping column
             $table->dropForeign(['space_category_id']);
 
-            $table->dropColumn(['space_fee']);
-            $table->dropColumn(['space_category_id']);
+            $table->dropColumn([
+                'space_fee',
+                'min_space_discount_time',
+                'space_discount'
+            ]);
         });
     }
 };

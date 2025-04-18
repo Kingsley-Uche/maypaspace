@@ -15,9 +15,13 @@ return new class extends Migration
             $table->id();
             $table->string('category');
             $table->unsignedBigInteger('tenant_id')->nullable();
+            $table->unsignedBigInteger('location_id')->nullable();
+            $table->enum('booking_type', ['hourly', 'daily', 'weekly', 'monthly']);
+            $table->integer('min_duration')->default(1); // in units of the booking_type
             $table->timestamps();
 
             $table->foreign('tenant_id')->references('id')->on('tenants')->onDelete('cascade');
+            $table->foreign('location_id')->references('id')->on('locations')->onDelete('cascade');;
         });
     }
 

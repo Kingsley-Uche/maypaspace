@@ -3,24 +3,24 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Scopes\TenantScope;
 
-class Category extends Model
+class TimeSetUpModel extends Model
 {
+    protected $table = 'time_set_ups'; // Table name
+
     protected $fillable = [
-        'category',
-        'location_id',
         'tenant_id',
-        'booking_type',
-        'min_duration',
+        'location_id',
+        'day',
+        'open_time',
+        'close_time',
+        'total_minutes',
     ];
 
-    protected static function booted()
-    {
-        static::addGlobalScope(new TenantScope());
-    }
-
-    // Optional: Relationships
+    /**
+     * Relationships
+     */
+    
     public function location()
     {
         return $this->belongsTo(Location::class);

@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BookSpot extends Model
 {
-    // Specify the table associated with the model (if it differs from the plural form of the model name)
+    use SoftDeletes; // You have softDeletes in your migration, so you should use it here too.
+
     protected $table = 'book_spots';
 
-    // Specify the attributes that are mass assignable
     protected $fillable = [
         'start_time',
         'end_time',
@@ -18,13 +19,23 @@ class BookSpot extends Model
         'user_id',
         'spot_id',
         'booked_ref_id',
+        'invoice_ref',
+        'type',
+        'chosen_days',
+        'recurrence',
     ];
 
+    protected $casts = [
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
+        'chosen_days' => 'array', // Important: cast chosen_days (JSON) to array automatically
+    ];
 
     public function bookedByUser()
     {
         return $this->belongsTo(User::class, 'booked_by_user');
     }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -34,13 +45,9 @@ class BookSpot extends Model
     {
         return $this->belongsTo(Spot::class);
     }
+
     public function bookedRef()
     {
         return $this->belongsTo(BookedRef::class, 'booked_ref_id');
     }
-   
-    protected $casts = [
-        'start_time' => 'datetime',
-        'end_time' => 'datetime',
-    ];
 }

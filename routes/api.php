@@ -1,21 +1,27 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\V1\SystemAdminAuthController;
-use App\Http\Controllers\Api\V1\UserAuthController;
-use App\Http\Controllers\Api\V1\UserFunctionsController;
-use App\Http\Controllers\Api\V1\SystemAdminFunctionsController;
-use App\Http\Controllers\Api\V1\CategoryController;
-use App\Http\Controllers\Api\V1\LocationController;
-use App\Http\Controllers\Api\V1\FloorController;
-use App\Http\Controllers\Api\V1\SpaceController;
-use App\Http\Controllers\Api\V1\BookingController;
-use App\Http\Controllers\Api\V1\OwnerController;
-use App\Http\Controllers\Api\V1\SubscriptionController;
-use App\Http\Controllers\Api\V1\UserTypeController;
-use App\Http\Controllers\Api\V1\TeamController;
-use App\Http\Controllers\Api\V1\BookSpotController;
+use App\Http\Controllers\Api\V1\{
+    SystemAdminAuthController,
+    UserAuthController,
+    UserFunctionsController,
+    SystemAdminFunctionsController,
+    CategoryController,
+    LocationController,
+    FloorController,
+    SpaceController,
+    BookingController,
+    OwnerController,
+    SubscriptionController,
+    UserTypeController,
+    TeamController,
+    BookSpotController,
+    PaymentController,
+    TimeSetUp,
+};
+
 use App\Http\Middleware\EnsureAdmin;
+
 
 Route::prefix('system-admin')->group(function(){
     Route::post('/login', [SystemAdminAuthController::class, 'login']);
@@ -73,9 +79,15 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
     Route::post('/verify-otp', [UserAuthController::class,'verifyOtp']);
     Route::post('/change-password', [UserAuthController::class,'resetPassword']);
     Route::get('/get/spaces', [BookSpotController::class,'getFreeSpots']);
-    
+    Route::post('/initiate/pay/spot', [PaymentController::class,'initiatePay']);
+    Route::post('/confirm/pay/spot', [PaymentController::class,'confirmPayment']);
 
     Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/settings/workspace/time/create', [TimeSetUp::class,'store']);
+        Route::post('/settings/workspace/time/update', [TimeSetUp::class,'store']);
+        Route::post('/settings/workspace/time/delete', [TimeSetUp::class,'destroy']);
+        Route::post('/settings/workspace/time/Single', [TimeSetUp::class,'show']);
+        Route::get('/settings/workspace/time/all', [TimeSetUp::class,'index']);
         Route::post('/spot/book', [BookSpotController::class, 'create']);  
         Route::post('/spot/cancel', [BookSpotController::class, ' cancelBooking']);
         Route::get('/spot/get', [BookSpotController::class, 'getBookings']);  
