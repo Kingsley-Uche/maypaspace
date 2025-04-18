@@ -18,8 +18,8 @@ use App\Http\Controllers\Api\V1\{
     BookSpotController,
     PaymentController,
     TimeSetUp,
+    NotificationController,
 };
-
 use App\Http\Middleware\EnsureAdmin;
 
 
@@ -154,7 +154,16 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/booking/update/{id}', [BookingController::class, 'update']);
         Route::post('/booking/delete', [BookingController::class, 'destroy']);
         Route::get('/booking/list-bookings', [BookingController::class, 'index']);
-        
+
+        // CRUD FOR NOTIFICATION THIS WILL BE CREATED BY TENANT OWNER
+        Route::post('/notification/create', [NotificationController::class, 'store']);
+        Route::get('/notification/list-notifications', [NotificationController::class, 'index']);
+        Route::get('/notification/show/{id}', [NotificationController::class, 'show']);
+        Route::post('/notification/update/{id}', [NotificationController::class, 'update']);
+        Route::post('/notification/delete', [NotificationController::class, 'destroy']);
+        Route::post('/notification/toggle-publish/{id}', [NotificationController::class, 'togglePublish']);
+        Route::post('/notification/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::get('/notification/view-my-notifications', [NotificationController::class, 'userIndex']);
     });
 
 });
