@@ -20,6 +20,7 @@ return new class extends Migration
             $table->json('chosen_days')->nullable(); // Store days array for recurrent
             $table->unsignedInteger('number_weeks')->nullable();
             $table->unsignedInteger('number_months')->nullable();
+            $table->dateTime('expiry_day')->nullable();
             $table->decimal('fee', 12, 2)->default(0);
             $table->string('invoice_ref')->nullable()->index();
             $table->softDeletes();

@@ -23,6 +23,7 @@ class BookSpot extends Model
         'type',
         'chosen_days',
         'recurrence',
+        'expiry_day',
     ];
 
     protected $casts = [
