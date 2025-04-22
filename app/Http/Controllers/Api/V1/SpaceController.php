@@ -44,25 +44,39 @@ class SpaceController extends Controller
 
         //validate request data
         $validator = Validator::make($request->all(), [
-           'space_name' => 'required|string|max:255',
+           'name' => 'required|string|max:255',
            'space_number' => 'required|numeric|gte:1',
            'location_id' => 'required|numeric|gte:1',
            'floor_id' => 'required|numeric|gte:1',
-           'space_fee' => 'required|numeric|gte:1',
+           'space_price_hourly' => 'sometimes|numeric|gte:1',
+           'space_price_daily' => 'sometimes|numeric|gte:1',
+           'space_price_weekly' => 'sometimes|numeric|gte:1',
+           'space_price_monthly' => 'sometimes|numeric|gte:1',
+           'space_price_semi_annually' =>'sometimes|numeric|gte:1',
+           'space_price_annually' => 'sometimes|numeric|gte:1',
            'space_category_id' => 'required|numeric|gte:1',
         ]);
  
         if($validator->fails()){
          return response()->json(['error' => $validator->errors()], 422);
         }
+        if(empty($validator->validated()['space_price_hourly']) && empty($validator->validated()['space_price_daily']) 
+        && empty($validator->validated()['space_price_weekly']) && empty($validator->validated()['space_price_monthly']) 
+        && empty($validator->validated()['space_price_semi_nnually']) && empty($validator->validated()['space_price_annually'])){
+            return response()->json(['message' => 'You must provide at least one fee'], 422); }
 
         //retrieve Validated data from the validator instance
         $validatedData = $validator->validated();
         
         $space = Space::create([
-         'space_name' => htmlspecialchars($validatedData['space_name'], ENT_QUOTES, 'UTF-8'),
-         'space_number' => htmlspecialchars($validatedData['space_number'], ENT_QUOTES, 'UTF-8'),
-         'space_fee' => htmlspecialchars($validatedData['space_fee'], ENT_QUOTES, 'UTF-8'),
+        'space_name' => htmlspecialchars($validatedData['name'], ENT_QUOTES, 'UTF-8'),
+        'space_number' => htmlspecialchars($validatedData['space_number'], ENT_QUOTES, 'UTF-8'),
+        'space_price_hourly' => htmlspecialchars($validatedData['space_price_hourly'], ENT_QUOTES, 'UTF-8'),
+        'space_price_daily' => htmlspecialchars($validatedData['space_price_daily'], ENT_QUOTES, 'UTF-8'),
+        'space_price_weekly' => htmlspecialchars($validatedData['space_price_weekly'], ENT_QUOTES, 'UTF-8'),
+        'space_price_monthly' => htmlspecialchars($validatedData['space_price_monthly'], ENT_QUOTES, 'UTF-8'),
+        'space_price_semi_annually' =>htmlspecialchars($validatedData['space_price_semi_annually'], ENT_QUOTES, 'UTF-8'),
+        'space_price_annually' =>htmlspecialchars($validatedData['space_price_annually'], ENT_QUOTES, 'UTF-8'),
          'space_category_id' => htmlspecialchars($validatedData['space_category_id'], ENT_QUOTES, 'UTF-8'),
          'location_id' => $request->location_id,
          'floor_id' => $request->floor_id,
@@ -113,8 +127,8 @@ class SpaceController extends Controller
         $validator = Validator::make($request->all(), [
             'space_name' => 'required|string|max:255',
             'space_number' => 'required|numeric|gte:1',
-            // 'location_id' => $request->location_id,
-            // 'floor_id' => $request->floor_id,
+            'location_id' => $request->location_id,
+            'floor_id' => $request->floor_id,
             'space_fee' => 'required|numeric|gte:1',
         ]);
 

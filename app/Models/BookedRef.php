@@ -43,20 +43,22 @@ class BookedRef extends Model
     }
     public function generateRef($tenant_slug)
     {
-        $maxSlugLength = 25 - strlen('BOOKED-YYYY-MM-DD-HH-MM-SS'); // 6 + 14 = 20, so 5 chars for slug
-        $trimmedSlug = substr($tenant_slug, 0, $maxSlugLength);
-        $booked_ref =  $trimmedSlug . '-' .'booked -'.date('Y-m-d-H-i-s');
+        $maxSlugLength = 25 - strlen('BOOKED-YYYY-MM-DD-HH-MM-SS'); // Calculate allowed slug length
+        $trimmedSlug = substr(preg_replace('/\s+/', '', $tenant_slug), 0, $maxSlugLength); // Remove spaces from slug
+    
+        $booked_ref = strtoupper($trimmedSlug . '-BOOKED-' . date('Y-m-d-H-i-s')); // Capitalize + no spaces
+    
         $counter = 0;
         $original_ref = $booked_ref;
-        
+    
         while (Bookedref::where('booked_ref', $booked_ref)->exists()) {
             $counter++;
-            // Trim original ref and add counter to stay within 25 chars
             $suffix = '-' . $counter;
             $baseLength = 25 - strlen($suffix);
             $booked_ref = substr($original_ref, 0, $baseLength) . $suffix;
         }
-        
+    
         return $booked_ref;
     }
+    
 }

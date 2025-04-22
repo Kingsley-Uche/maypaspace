@@ -1,8 +1,8 @@
 <?php
 
 namespace App\Models;
-use App\Models\Scopes\TenantScope;
 
+use App\Models\Scopes\TenantScope;
 use Illuminate\Database\Eloquent\Model;
 
 class Space extends Model
@@ -10,7 +10,12 @@ class Space extends Model
     protected $fillable = [
         'space_name',
         'space_number',
-        'space_fee',
+        'space_price_hourly',
+        'space_price_daily',
+        'space_price_weekly',
+        'space_price_monthly',
+        'space_price_semi_annually',
+        'space_price_annually',
         'space_category_id',
         'location_id',
         'floor_id',
@@ -45,9 +50,12 @@ class Space extends Model
     {
         return $this->hasMany(Spot::class, 'space_id');
     }
-    public function category(){
+
+    public function category()
+    {
         return $this->belongsTo(Category::class, 'space_category_id');
     }
+
     protected static function booted()
     {
         static::addGlobalScope(new TenantScope());
