@@ -72,21 +72,6 @@ class SpaceController extends Controller
             return response()->json(['message' => 'You must provide at least one fee'], 422); }
 
         $space = Space::create([
-<<<<<<< HEAD
-        'space_name' => htmlspecialchars($validatedData['name'], ENT_QUOTES, 'UTF-8'),
-        'space_number' => htmlspecialchars($validatedData['space_number'], ENT_QUOTES, 'UTF-8'),
-        'space_price_hourly' => htmlspecialchars($validatedData['space_price_hourly'], ENT_QUOTES, 'UTF-8'),
-        'space_price_daily' => htmlspecialchars($validatedData['space_price_daily'], ENT_QUOTES, 'UTF-8'),
-        'space_price_weekly' => htmlspecialchars($validatedData['space_price_weekly'], ENT_QUOTES, 'UTF-8'),
-        'space_price_monthly' => htmlspecialchars($validatedData['space_price_monthly'], ENT_QUOTES, 'UTF-8'),
-        'space_price_semi_annually' =>htmlspecialchars($validatedData['space_price_semi_annually'], ENT_QUOTES, 'UTF-8'),
-        'space_price_annually' =>htmlspecialchars($validatedData['space_price_annually'], ENT_QUOTES, 'UTF-8'),
-         'space_category_id' => htmlspecialchars($validatedData['space_category_id'], ENT_QUOTES, 'UTF-8'),
-         'location_id' => $request->location_id,
-         'floor_id' => $request->floor_id,
-         'created_by_user_id' => $user->id,
-         'tenant_id' => $tenant->id,
-=======
             'space_name' => htmlspecialchars($validated['name'], ENT_QUOTES, 'UTF-8'),
             'space_number' => htmlspecialchars($validated['space_number'], ENT_QUOTES, 'UTF-8'),
             'space_category_id' => $validated['space_category_id'],
@@ -97,7 +82,6 @@ class SpaceController extends Controller
             'space_fee' => $validated['space_fee'], 
             'min_space_discount_time'=>$validated['min_space_discount_time'],//
             'space_discount'=>$validated['space_discount'],//
->>>>>>> e0a8eb61adbaf898691e47e6d122e5680a2a5296
         ]);
 
         if (!$space) {
@@ -133,18 +117,12 @@ class SpaceController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'space_number' => 'required|numeric|gte:1',
-<<<<<<< HEAD
-            'location_id' => $request->location_id,
-            'floor_id' => $request->floor_id,
-            'space_fee' => 'required|numeric|gte:1',
-=======
             'location_id' => 'required|numeric|gte:1',
             'floor_id' => 'required|numeric|gte:1',
             'space_fee' => 'required|decimal:2',
             'space_category_id' => 'required|numeric|gte:1',
             'min_space_discount_time' => 'required|numeric|gte:1',
             'space_discount' => 'required|numeric|gte:1',
->>>>>>> e0a8eb61adbaf898691e47e6d122e5680a2a5296
         ]);
 
         if ($validator->fails()) {

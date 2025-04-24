@@ -18,13 +18,8 @@ use App\Http\Controllers\Api\V1\{
     BookSpotController,
     PaymentController,
     TimeSetUp,
-<<<<<<< HEAD
-};
-
-=======
     NotificationController,
 };
->>>>>>> e0a8eb61adbaf898691e47e6d122e5680a2a5296
 use App\Http\Middleware\EnsureAdmin;
 
 
