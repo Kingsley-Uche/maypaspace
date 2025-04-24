@@ -31,23 +31,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('spaces', function (Blueprint $table) {
-<<<<<<< HEAD
-            // Remove the foreign key before dropping the column
-            $table->dropForeign(['space_category_id']);
-
-            $table->dropColumn([
-                'space_price_hourly',
-                'space_price_daily',
-                'space_price_weekly',
-                'space_price_monthly',
-                'space_price_semi_annually',
-                'space_price_annually',
-                'space_category_id'
-            ]);
-
-            // Optionally, re-add the old column if needed:
-            // $table->unsignedBigInteger('space_fee')->nullable();
-=======
             // Drop foreign key before dropping column
             $table->dropForeign(['space_category_id']);
 
@@ -56,7 +39,6 @@ return new class extends Migration
                 'min_space_discount_time',
                 'space_discount'
             ]);
->>>>>>> e0a8eb61adbaf898691e47e6d122e5680a2a5296
         });
     }
 };
