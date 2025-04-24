@@ -79,9 +79,14 @@ public function initiatePay(Request $request, $slug)
                 ];
             });
 
-            $lastDay = $chosenDays->first();
-            $expiry_day = $lastDay['end_time']->copy()->addWeeks($number_weeks)->addMonths($number_months);
-
+            if($validatedData['type'] === 'recurrent'){
+                $lastDay = $chosenDays->first();
+                
+                $expiry_day = $lastDay['end_time']->copy()->addWeeks($number_weeks)->addMonths($number_months);
+            }else{
+                $lastDay = $chosenDays->last();
+                $expiry_day = $lastDay['end_time'];
+            }
             // Fetch tenant availability
             $cacheKey = "tenant_availability_{$slug}_" . md5(json_encode($chosenDays->pluck('day')->sort()->values()->toArray()));
             $tenant_available = Cache::remember($cacheKey, now()->addHours(1), function () use ($slug, $chosenDays) {
@@ -518,6 +523,20 @@ public function initiatePay(Request $request, $slug)
             }
 
             return DB::transaction(function () use ($validated, $bookingRefId, $paymentInfo, $chosenDays, $expiry_day) {
+
+                $bookSpot = BookSpot::create([
+                    'spot_id' => $validated['spot_id'],
+                    'user_id' => $validated['user_id'],
+                    'booked_by_user' => $validated['user_id'],
+                    'type' => $validated['type'],
+                    'chosen_days' => json_encode($validated['chosen_days']),
+                    'fee' => $paymentInfo['amount'] / 100,
+                    'invoice_ref' => $paymentInfo['reference'],
+                    'booked_ref_id' => $bookingRefId,
+                    'number_weeks' => $validated['number_weeks'] ?? 1,
+                    'number_months' => $validated['number_months'] ?? 1,
+                    'expiry_day' => $expiry_day,
+                ]);
                 // Batch insert ReservedSpots
                 $reservedSpotsData = $chosenDays->map(function ($day) use ($validated, $expiry_day) {
                     return [
@@ -529,25 +548,13 @@ public function initiatePay(Request $request, $slug)
                         'expiry_day' => $expiry_day,
                         'created_at' => now(),
                         'updated_at' => now(),
+                        'booked_spot_id' => $bookSpot->id,
                     ];
                 })->toArray();
                 ReservedSpots::insert($reservedSpotsData);
 
                 // Create BookSpot
-                $bookSpot = BookSpot::create([
-                    'spot_id' => $validated['spot_id'],
-                    'user_id' => $validated['user_id'],
-                    'booked_by_user' => $validated['user_id'],
-                    'type' => $validated['type'],
-                    'chosen_days' => $validated['type'] === 'recurrent' ? json_encode($validated['chosen_days']) : null,
-                    'fee' => $paymentInfo['amount'] / 100,
-                    'invoice_ref' => $paymentInfo['reference'],
-                    'booked_ref_id' => $bookingRefId,
-                    'number_weeks' => $validated['number_weeks'] ?? 1,
-                    'number_months' => $validated['number_months'] ?? 1,
-                    'expiry_day' => $expiry_day,
-                ]);
-
+               
                 // Update SpacePaymentModel
                 $updated = SpacePaymentModel::where('payment_ref', $paymentInfo['reference'])->update([
                     'amount' => $paymentInfo['amount'] / 100,

@@ -79,4 +79,7 @@ class Space extends Model
     {
         static::addGlobalScope(new TenantScope());
     }
+    public function location(){
+        return $this->belongsTo(Location::class, 'loactaion_id');
+    }
 }

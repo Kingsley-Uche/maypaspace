@@ -10,6 +10,7 @@ class ReservedSpots extends Model
     protected $fillable = [
         'user_id',
         'spot_id',
+        'booked_spot_id',
         'day',
         'start_time',
         'end_time',
