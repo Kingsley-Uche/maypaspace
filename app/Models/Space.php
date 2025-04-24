@@ -3,19 +3,38 @@
 namespace App\Models;
 
 use App\Models\Scopes\TenantScope;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model;#
+use \Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Space extends Model
 {
-    protected $fillable = [
+
+
+    protected $table = 'spaces';
+
+    protected $casts = [
+        'space_fee' => 'decimal:2',
+        'min_space_discount_time' => 'integer',
+        'space_discount' => 'decimal:2',
+        'deleted' => 'boolean',
+    ];
+
+    protected $attributes = [
+        'deleted' => 'no',
+    ];
+    protected $hidden = [
+        'created_by_user_id',
+        'deleted_by_user_id',
+        'deleted_at',
+    ];
+
+
+  protected $fillable = [
         'space_name',
         'space_number',
-        'space_price_hourly',
-        'space_price_daily',
-        'space_price_weekly',
-        'space_price_monthly',
-        'space_price_semi_annually',
-        'space_price_annually',
+        'space_fee',
+        'min_space_discount_time',
+        'space_discount',
         'space_category_id',
         'location_id',
         'floor_id',

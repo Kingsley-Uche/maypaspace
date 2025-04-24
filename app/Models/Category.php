@@ -10,12 +10,24 @@ class Category extends Model
     protected $fillable = [
         'category',
         'location_id',
-        // 'space_id',
         'tenant_id',
-      ];
+        'booking_type',
+        'min_duration',
+    ];
 
     protected static function booted()
     {
         static::addGlobalScope(new TenantScope());
+    }
+
+    // Optional: Relationships
+    public function location()
+    {
+        return $this->belongsTo(Location::class);
+    }
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
     }
 }

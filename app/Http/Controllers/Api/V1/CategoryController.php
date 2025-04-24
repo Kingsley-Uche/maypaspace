@@ -28,7 +28,8 @@ class CategoryController extends Controller
         $validator = Validator::make($request->all(), [
            'category' => 'required|string|max:255',
            'location_id' => 'required|numeric|gte:1|exists:locations,id',
-        //    'space_id' => 'required|numeric|gte:1',
+           'booking_type'=>'required|string|in:hourly,daily,weekly,monthly',
+           'min_duration'=> 'required|numeric|gte:1'
         ]);
 
         $locationCheck = Location::findOrFail($request->location_id);
@@ -95,11 +96,12 @@ class CategoryController extends Controller
         if($user->user_type_id !== 1 && $user->user_type_id !== 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
-         //validate request data
-         $validator = Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'category' => 'required|string|max:255',
-            'location_id' => 'required|numeric|gte:1',
-          ]);
+            'location_id' => 'required|numeric|gte:1|exists:locations,id',
+            'booking_type'=>'required|string|in:hourly,daily,weekly,monthly',
+            'min_duration'=> 'required|numeric|gte:1'
+         ]);
  
          //send response if validation fails
          if($validator->fails()){

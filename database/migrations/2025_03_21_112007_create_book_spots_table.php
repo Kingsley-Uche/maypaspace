@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -17,17 +16,13 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('booked_by_user')->nullable();
             $table->unsignedBigInteger('booked_ref_id')->nullable();
-
-            $table->dateTime('start_time'); 
-            $table->dateTime('end_time'); 
-
             $table->enum('type', ['one-off', 'recurrent'])->default('one-off');
             $table->json('chosen_days')->nullable(); // Store days array for recurrent
-            $table->enum('recurrence', ['daily', 'weekly', 'monthly', 'yearly'])->nullable(); // recurrence type
-
-            $table->decimal('fee', 12, 2)->default(0); 
-            $table->string('invoice_ref')->nullable()->index(); 
-            
+            $table->unsignedInteger('number_weeks')->nullable();
+            $table->unsignedInteger('number_months')->nullable();
+            $table->dateTime('expiry_day')->nullable();
+            $table->decimal('fee', 12, 2)->default(0);
+            $table->string('invoice_ref')->nullable()->index();
             $table->softDeletes();
             $table->timestamps();
 
@@ -47,3 +42,4 @@ return new class extends Migration
         Schema::dropIfExists('book_spots');
     }
 };
+

@@ -16,59 +16,63 @@ use App\Models\Spot;
 
 class SpaceController extends Controller
 {
-    public function create(Request $request, $tenant_slug){
+    public function create(Request $request, $tenant_slug)
+    {
         $user = $request->user();
-
-        //We identify the tenant using slug
         $tenant = $this->checkTenant($tenant_slug, $user);
 
-        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_space'])->get();
+        $userType = User::where('id', $user->id)
+            ->select('id', 'user_type_id')
+            ->with(['user_type:id,create_space'])
+            ->first();
 
-        $permission = $userType[0]['user_type']['create_space'];
-
-        if($user->user_type_id !== 1 && $permission !== "yes"){
+        if (!$userType || ($user->user_type_id !== 1 && $userType->user_type->create_space !== 'yes')) {
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
-        Location::where('id', $request->location_id)->firstOrFail();
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'space_number' => 'required|numeric|gte:1',
+            'location_id' => 'required|numeric|gte:1|exists:locations,id',
+            'floor_id' => 'required|numeric|gte:1|exists:floors,id',
+           'space_fee' => 'required|numeric|regex:/^\d+(\.\d{1,2})?$/',
+            'space_category_id' => 'required|numeric|gte:1|exists:categories,id',
+            'min_space_discount_time' => 'required|numeric|gte:1',
+            'space_discount' => 'required|numeric|gte:1',
+        ],
+    ['floor_id' => 'This floor does not exist on this workspace, please check and try again',
+        'location_id' => 'This location does not exist on this workspace, please check and try again',
+        'space_category_id' => 'This space category does not exist on this workspace, please check and try again',
+    ]
+);
 
-        Category::where('id', $request->space_category_id)->firstOrFail();
-
-        Floor::where('id', $request->floor_id)->firstOrFail();
-
-        $verifyName = Space::where('space_name', $request->space_name)->where('location_id', $request->location_id)->where('floor_id', $request->floor_id)->first();
-
-        if($verifyName){
-            return response()->json(['message' => 'You have already named a Space "'.$request->space_name.'" in this floor and location'], 422);
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 422);
         }
 
-        //validate request data
-        $validator = Validator::make($request->all(), [
-           'name' => 'required|string|max:255',
-           'space_number' => 'required|numeric|gte:1',
-           'location_id' => 'required|numeric|gte:1',
-           'floor_id' => 'required|numeric|gte:1',
-           'space_price_hourly' => 'sometimes|numeric|gte:1',
-           'space_price_daily' => 'sometimes|numeric|gte:1',
-           'space_price_weekly' => 'sometimes|numeric|gte:1',
-           'space_price_monthly' => 'sometimes|numeric|gte:1',
-           'space_price_semi_annually' =>'sometimes|numeric|gte:1',
-           'space_price_annually' => 'sometimes|numeric|gte:1',
-           'space_category_id' => 'required|numeric|gte:1',
-        ]);
- 
-        if($validator->fails()){
-         return response()->json(['error' => $validator->errors()], 422);
+        $validated = $validator->validated();
+
+        Location::findOrFail($validated['location_id']);
+        Category::findOrFail($validated['space_category_id']);
+        Floor::findOrFail($validated['floor_id']);
+
+        $verifyName = Space::where('space_name', $validated['name'])
+            ->where('location_id', $validated['location_id'])
+            ->where('floor_id', $validated['floor_id'])
+            ->first();
+
+        if ($verifyName) {
+            return response()->json([
+                'message' => 'You have already named a Space "' . $validated['name'] . '" in this floor and location'
+            ], 422);
         }
         if(empty($validator->validated()['space_price_hourly']) && empty($validator->validated()['space_price_daily']) 
         && empty($validator->validated()['space_price_weekly']) && empty($validator->validated()['space_price_monthly']) 
         && empty($validator->validated()['space_price_semi_nnually']) && empty($validator->validated()['space_price_annually'])){
             return response()->json(['message' => 'You must provide at least one fee'], 422); }
 
-        //retrieve Validated data from the validator instance
-        $validatedData = $validator->validated();
-        
         $space = Space::create([
+<<<<<<< HEAD
         'space_name' => htmlspecialchars($validatedData['name'], ENT_QUOTES, 'UTF-8'),
         'space_number' => htmlspecialchars($validatedData['space_number'], ENT_QUOTES, 'UTF-8'),
         'space_price_hourly' => htmlspecialchars($validatedData['space_price_hourly'], ENT_QUOTES, 'UTF-8'),
@@ -82,14 +86,25 @@ class SpaceController extends Controller
          'floor_id' => $request->floor_id,
          'created_by_user_id' => $user->id,
          'tenant_id' => $tenant->id,
+=======
+            'space_name' => htmlspecialchars($validated['name'], ENT_QUOTES, 'UTF-8'),
+            'space_number' => htmlspecialchars($validated['space_number'], ENT_QUOTES, 'UTF-8'),
+            'space_category_id' => $validated['space_category_id'],
+            'location_id' => $validated['location_id'],
+            'floor_id' => $validated['floor_id'],
+            'created_by_user_id' => $user->id,
+            'tenant_id' => $tenant->id,
+            'space_fee' => $validated['space_fee'], 
+            'min_space_discount_time'=>$validated['min_space_discount_time'],//
+            'space_discount'=>$validated['space_discount'],//
+>>>>>>> e0a8eb61adbaf898691e47e6d122e5680a2a5296
         ]);
- 
-        //return response if create fails
-        if(!$space){
-           return response()->json(['message' => 'Something went wrong, try again later'], 500);
+
+        if (!$space) {
+            return response()->json(['message' => 'Something went wrong, try again later'], 500);
         }
 
-        $count = $request->space_number;
+        $count = (int)$validated['space_number'];
 
         for ($i = 0; $i < $count; $i++) {
             Spot::create([
@@ -99,92 +114,73 @@ class SpaceController extends Controller
                 'tenant_id' => $tenant->id,
             ]);
         }
- 
-        //return response if create was successful
-        return response()->json(['message'=> 'Space and spots successfully created', 'location'=>$space], 201);        
+
+        return response()->json([
+            'message' => 'Space and spots successfully created',
+            'location' => $space
+        ], 201);
     }
 
-    public function update(Request $request, $tenant_slug, $id){
+    public function update(Request $request, $tenant_slug, $id)
+    {
         $user = $request->user();
-
         $tenant = $this->checkTenant($tenant_slug, $user);
 
-        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,update_space'])->get();
+        $space = Space::where('id', $id)
+            ->where('tenant_id', $tenant->id)
+            ->firstOrFail();
 
-        $permission = $userType[0]['user_type']['update_space'];
-
-        if($user->user_type_id !== 1 && $permission !== "yes"){
-            return response()->json(['message' => 'You are not authorized'], 403);
-        }
-
-        $verifyName = Space::where('space_name', $request->name)->where('location_id', $request->location_id)->where('floor_id', $request->floor_id)->first();
-
-        if($verifyName){
-            return response()->json(['message' => 'You have already named a Space "'.$request->name.'" in this floor and location'], 422);
-        }
-
-         //validate request data
         $validator = Validator::make($request->all(), [
-            'space_name' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'space_number' => 'required|numeric|gte:1',
+<<<<<<< HEAD
             'location_id' => $request->location_id,
             'floor_id' => $request->floor_id,
             'space_fee' => 'required|numeric|gte:1',
+=======
+            'location_id' => 'required|numeric|gte:1',
+            'floor_id' => 'required|numeric|gte:1',
+            'space_fee' => 'required|decimal:2',
+            'space_category_id' => 'required|numeric|gte:1',
+            'min_space_discount_time' => 'required|numeric|gte:1',
+            'space_discount' => 'required|numeric|gte:1',
+>>>>>>> e0a8eb61adbaf898691e47e6d122e5680a2a5296
         ]);
 
-        //send response if validation fails
-        if($validator->fails()){
-            return response()->json(['errors'=>$validator->errors()], 422);
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 422);
         }
 
-        //using the provided id, find the Floor to be updated
-        $space = Space::findOrFail($id);
+        $data = $validator->validated();
 
-        //retrieve validatedData from the validator instance
-        $validatedData = $validator->validated();
+        $space->update([
+            'space_name' => htmlspecialchars($data['name'], ENT_QUOTES, 'UTF-8'),
+            'space_number' => $data['space_number'],
+            'location_id' => $data['location_id'],
+            'floor_id' => $data['floor_id'],
+            'space_category_id' => $data['space_category_id'],
+            'space_fee' => $data['space_fee'],
+            'min_space_discount_time' => $data['min_space_discount_time'],
+            'space_discount' => $data['space_discount'],
+        ]);
 
-        //sanitize and save validated request data
-        $space->space_name = htmlspecialchars($validatedData['space_name'], ENT_QUOTES, 'UTF-8');
-        $space->space_number = htmlspecialchars($validatedData['space_number'], ENT_QUOTES, 'UTF-8');
-        $space->space_fee = htmlspecialchars($validatedData['space_fee'], ENT_QUOTES, 'UTF-8');
-        // $space->location_id = $request->location_id;
-        // $space->floor_id = $request->floor_id;
-
-        $response = $space->save();
-
-        //If update fails, send response
-        if(!$response){
-            return response()->json(['message'=>'Something went wrong, please try again later'], 500);
-        }
-
-        //If update is successful, send response
-        return response()->json(['message'=> 'Space updated successfully', 'data'=>$space], 201);
+        return response()->json(['message' => 'Space updated successfully', 'space' => $space], 200);
     }
 
-    public function index($tenant_slug, $location_id, $floor_id){
+    public function index(Request $request, $tenant_slug)
+    {
+        $user = $request->user();
+        $tenant = $this->checkTenant($tenant_slug, $user);
 
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
+        $spaces = Space::with(['location', 'floor', 'category'])
+            ->where('tenant_id', $tenant->id)->where('deleted', 'no')
+            ->get();
 
-        if (!$tenant) {
-            return response()->json(['message' => 'Tenant not found'], 404);
-        }
-
-        $spaces = Space::where('tenant_id', $tenant->id)
-        ->where('location_id', $location_id)
-        ->where('floor_id', $floor_id)
-        ->where('deleted', 'no')
-        ->with([
-            'tenants',
-            'createdBy:id,first_name,last_name',
-            'deletedBy:id,first_name,last_name',
-            'spots',
-        ])
-        ->paginate(10);
- 
-        return response()->json(['data'=>$spaces], 200);
+        return response()->json($spaces, 200);
     }
 
-    public function fetchOne($tenant_slug, $id){
+    public function fetchOne($tenant_slug, $id)
+    {
         $tenant = Tenant::where('slug', $tenant_slug)->first();
 
         if (!$tenant) {
@@ -192,60 +188,48 @@ class SpaceController extends Controller
         }
 
         $floor = Space::where('tenant_id', $tenant->id)
-        ->where('deleted', 'no')
-        ->where('id', $id)
-        ->with([
-            'tenants',
-            'createdBy:id,first_name,last_name',
-            'deletedBy:id,first_name,last_name',
-            'spots',
-        ])
-        ->firstOrFail();
+            ->where('deleted', 'no')
+            ->where('id', $id)
+            ->with([
+                'tenants',
+                'createdBy:id,first_name,last_name',
+                'deletedBy:id,first_name,last_name',
+                'spots',
+            ])
+            ->firstOrFail();
 
-        return response()->json(['data'=>$floor], 200);
-
-
+        return response()->json(['data' => $floor], 200);
     }
 
-    private function checkTenant($tenant_slug, $user){
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
-
-        if (!$tenant) {
-            return response()->json(['message' => 'Tenant not found'], 404);
-        }
-
-        if($user->tenant_id !== $tenant->id){
-            return response()->json(['message' => 'You are not authorized'], 403); 
-        }
-
-        return $tenant;
-
-    }
-
-    public function destroy(Request $request, $tenant_slug){
-
+    public function destroy(Request $request, $tenant_slug)
+    {
         $user = $request->user();
-
         $tenant = $this->checkTenant($tenant_slug, $user);
 
-        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,delete_space'])->get();
+        $userType = User::where('id', $user->id)
+            ->select('id', 'user_type_id')
+            ->with(['user_type:id,delete_space'])
+            ->get();
 
         $permission = $userType[0]['user_type']['delete_space'];
 
-        if($user->user_type_id !== 1 && $permission !== "yes"){
+        if ($user->user_type_id !== 1 && $permission !== "yes") {
             return response()->json(['message' => 'You are not authorized'], 403);
         }
-         //validate the ID
+
         $validator = Validator::make($request->all(), [
-            'id' => 'required|numeric|exists:spaces,id'
+            'space_number' => 'required|numeric|gte:1',
+            'location_id' => 'required|numeric|gte:1',
         ]);
 
-        if($validator->fails()){
-            return response()->json(['errors'=> $validator->errors()], 422);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        //find the category to be deleted using the Id
-        $space = Space::findOrFail($request->id);
+        $space = Space::where('space_name', $request->name)
+            ->where('location_id', $request->location_id)
+            ->where('floor_id', $request->floor_id)
+            ->firstOrFail();
 
         $space->deleted = "yes";
         $space->deleted_by_user_id = $user->id;
@@ -255,12 +239,25 @@ class SpaceController extends Controller
 
         Spot::where('space_id', $space->id)->delete();
 
-        //return response if delete fails
-        if(!$response){
-            return response()->json(['message'=> 'Failed to delete, try again'], 422);
+        if (!$response) {
+            return response()->json(['message' => 'Failed to delete, try again'], 422);
         }
- 
-        //return response if delete is successful
-        return response()->json(['message'=> 'Space deleted successfully'], 200);
+
+        return response()->json(['message' => 'Space deleted successfully'], 200);
+    }
+
+    private function checkTenant($tenant_slug, $user)
+    {
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            abort(response()->json(['message' => 'Tenant not found'], 404));
+        }
+
+        if ($user->tenant_id !== $tenant->id) {
+            abort(response()->json(['message' => 'You are not authorized'], 403));
+        }
+
+        return $tenant;
     }
 }

@@ -137,8 +137,7 @@ class BookSpotController extends Controller
                 'start_time'    => $validated['start_time'],
                 'end_time'      => $validated['end_time'],
                 'user_id'       => $validated['booked_for_user'],
-                'spot_id'       => $validated['spot_id'],
-                'spot_id'       => $validated['spot_id'],
+                'spot_id'       => $validated['spot_id']
             ]);
 
             Spot::where('id', $booking->spot_id)->update(['book_status' => 'yes']);
