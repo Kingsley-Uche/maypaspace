@@ -140,17 +140,17 @@ private function getTenantFromSpot($spotId)
         return Spot::with(['space.category'])->find($spotId);
     });
 }
-
 private function normalizeChosenDays(array $days)
 {
     return collect($days)->map(function ($day) {
         return [
             'day' => strtolower($day['day']),
-            'start_time' => Carbon::parse($day['start_time']),
-            'end_time' => Carbon::parse($day['end_time']),
+            'start_time' => Carbon::parse($day['start_time'])->timezone('Africa/Lagos'),
+            'end_time' => Carbon::parse($day['end_time'])->timezone('Africa/Lagos'),
         ];
     });
 }
+
 
 private function calculateExpiryDate($type, $chosenDays, $validated)
 {
@@ -255,8 +255,8 @@ private function handleConflictResponse($spotId, $chosenDays)
 
             foreach ($bookedSlots as $bookedSlot) {
                 $bookedDay = strtolower($bookedSlot['day']);
-                $bookedStart = Carbon::parse($bookedSlot['start_time']);
-                $bookedEnd = Carbon::parse($bookedSlot['end_time']);
+                $bookedStart = Carbon::parse($bookedSlot['start_time'])->timezone('Africa/Lagos');
+                $bookedEnd = Carbon::parse($bookedSlot['end_time'])->timezone('Africa/Lagos');
 
                 if (
                     $chosenDay === $bookedDay &&
@@ -368,7 +368,7 @@ public function update(Request $request)
         // Validate request
         $validated = $this->validateBookingRequest($request, true);
         $loggedUser = Auth::user();
-
+dd($validated);
         // Fetch the booking
         $booking = BookSpot::where('id', $request->booking_id)
             ->where('booked_by_user', $loggedUser->id)
