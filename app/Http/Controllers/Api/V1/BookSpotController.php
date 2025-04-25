@@ -33,6 +33,7 @@ class BookSpotController extends Controller
         $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
 
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
+       
         if ($tenantAvailability->isEmpty()) {
             return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
         }
@@ -95,7 +96,7 @@ class BookSpotController extends Controller
                             'expiry_day' => $expiryDay,
                             'created_at' => now(),
                             'updated_at' => now(),
-                            'book_spot_id' => $bookSpot->id,
+                            'booked_spot_id' => $bookSpot->id,
                         ];
                     })->toArray();
                     ReservedSpots::insert($reservedSpotsData);
@@ -201,39 +202,100 @@ private function areChosenTimesValid($chosenDays, $availability)
 
 private function hasConflicts($spotId, $chosenDays)
 {
-    return BookSpot::where('spot_id', $spotId)
-        ->where('expiry_day', '>=', now())
-        ->where(function ($query) use ($chosenDays) {
-            foreach ($chosenDays as $day) {
-                $query->orWhere(function ($q) use ($day) {
-                    $q->whereJsonContains('chosen_days', ['day' => $day['day']])
-                        ->whereRaw('JSON_UNQUOTE(JSON_EXTRACT(chosen_days, "$[*].start_time")) < ?', [$day['end_time']])
-                        ->whereRaw('JSON_UNQUOTE(JSON_EXTRACT(chosen_days, "$[*].end_time")) > ?', [$day['start_time']]);
-                });
-            }
-        })->exists();
+   // dd(Carbon::parse(now()));
+
+   // return 
+   $bookings = BookSpot::where('spot_id', $spotId)
+   ->where('expiry_day', '>=', Carbon::now())
+   ->get();
+
+$conflict = false;
+
+foreach ($bookings as $booking) {
+   $chosen = json_decode($booking->chosen_days, true);
+   foreach ($chosen as $slot) {
+       foreach ($chosenDays as $inputDay) {
+           if (
+               strtolower($slot['day']) === strtolower($inputDay['day']) &&
+               $slot['start_time'] < $inputDay['end_time'] &&
+               $slot['end_time'] > $inputDay['start_time']
+           ) {
+               $conflict = true;
+               break 3;
+           }
+       }
+   }
 }
 
+return $conflict;
+
+}
 private function handleConflictResponse($spotId, $chosenDays)
 {
+    $chosenDays = collect($chosenDays)->map(function ($day) {
+        return [
+            'day' => Carbon::parse($day['day'])->format('l'),
+            'start_time' => Carbon::parse($day['start_time']),
+            'end_time' => Carbon::parse($day['end_time']),
+        ];
+    });
+
+    $conflictDetails = collect();
     $conflicts = BookSpot::where('spot_id', $spotId)
         ->where('expiry_day', '>=', now())
-        ->get()
-        ->flatMap(function ($booking) use ($chosenDays) {
-            return collect(json_decode($booking->chosen_days, true))->filter(function ($bookedDay) use ($chosenDays) {
-                return $chosenDays->contains(function ($cd) use ($bookedDay) {
-                    return $cd['day'] === $bookedDay['day'] &&
-                        $cd['start_time'] < $bookedDay['end_time'] &&
-                        $cd['end_time'] > $bookedDay['start_time'];
-                });
-            })->map(fn($day) => "Day: {$day['day']}, reserved from {$day['start_time']} to {$day['end_time']}");
-        });
+        ->get();
 
-    return response()->json([
-        'message' => 'This spot is already reserved during the selected time',
-        'conflicts' => $conflicts->implode('; ')
-    ], 422);
+    foreach ($conflicts as $conflict) {
+        $bookedSlots = collect(json_decode($conflict->chosen_days, true));
+
+        foreach ($chosenDays as $chosenSlot) {
+            $chosenDay = strtolower($chosenSlot['day']);
+            $chosenStart = $chosenSlot['start_time'];
+            $chosenEnd = $chosenSlot['end_time'];
+
+            foreach ($bookedSlots as $bookedSlot) {
+                $bookedDay = strtolower($bookedSlot['day']);
+                $bookedStart = Carbon::parse($bookedSlot['start_time']);
+                $bookedEnd = Carbon::parse($bookedSlot['end_time']);
+
+                if (
+                    $chosenDay === $bookedDay &&
+                    $bookedStart < $chosenEnd &&
+                    $bookedEnd > $chosenStart
+                ) {
+                    $conflictDetails->push([
+                        'day' => ucfirst($chosenDay),
+                        'chosen_time' => "{$chosenStart->format('H:i')} - {$chosenEnd->format('H:i')}",
+                        'booked_time' => "{$bookedStart->format('H:i')} - {$bookedEnd->format('H:i')}",
+                    ]);
+                }
+            }
+        }
+    }
+
+    if ($conflictDetails->isNotEmpty()) {
+        $grouped = $conflictDetails->groupBy('day')->map(function ($conflicts, $day) {
+            return [
+                'day' => $day,
+                'conflicts' => $conflicts->map(function ($item) {
+                    return "Your slot: {$item['chosen_time']}, Booked slot: {$item['booked_time']}";
+                })->unique()->values(),
+            ];
+        })->values();
+
+        return response()->json([
+            'message' => 'This spot is already reserved during the selected time(s).',
+            'conflicts' => $grouped,
+        ], 422);
+    }
+
+    return response()->json(['message' => 'No conflicts found.'], 200);
 }
+
+
+
+
+
 
 private function calculateTotalDuration($chosenDays, $availability)
 {
@@ -301,6 +363,7 @@ private function calculateBookingAmount($validated, $tenant, $totalDuration)
 
 public function update(Request $request)
 {
+    
     try {
         // Validate request
         $validated = $this->validateBookingRequest($request, true);
@@ -428,10 +491,13 @@ public function update(Request $request)
             })
             ->with('spot')
             ->firstOrFail();
+            $reservedSpots = ReservedSpots::where('booked_spot_id', $booking->id)->get();
 
-        DB::transaction(function () use ($booking) {
+        DB::transaction(function () use ($booking,$reservedSpots) {
             $booking->delete();
-            Spot::where('id', $booking->spot_id)->update(['book_status' => 'no']);
+            $reservedSpots->each(function ($reservedSpot) {
+                $reservedSpot->delete();
+            });
         });
 
         return response()->json(['message' => 'Booking successfully canceled'], 200);
