@@ -33,7 +33,7 @@ class BookSpotController extends Controller
         $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
 
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
-       
+    
         if ($tenantAvailability->isEmpty()) {
             return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
         }
@@ -128,6 +128,7 @@ private function validateBookingRequest(Request $request)
         'number_weeks' => 'nullable|numeric|min:1|max:3',
         'number_months' => 'nullable|numeric|min:0|max:12',
         'chosen_days' => 'required_if:type,recurrent|array',
+        'book_spot_id'=>'nullable|numeric|min:0',
         'chosen_days.*.day' => 'required|string|in:sunday,monday,tuesday,wednesday,thursday,friday,saturday',
         'chosen_days.*.start_time' => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
         'chosen_days.*.end_time' => 'required|date_format:Y-m-d H:i:s|after:chosen_days.*.start_time',
@@ -361,31 +362,29 @@ private function calculateBookingAmount($validated, $tenant, $totalDuration)
 }
 
 
-public function update(Request $request)
+public function update(Request $request, $slug)
 {
     
     try {
         // Validate request
         $validated = $this->validateBookingRequest($request, true);
         $loggedUser = Auth::user();
-dd($validated);
         // Fetch the booking
-        $booking = BookSpot::where('id', $request->booking_id)
+        $booking = BookSpot::where('id', $request->book_spot_id)
             ->where('booked_by_user', $loggedUser->id)
             ->firstOrFail();
-
         // Get tenant from spot
         $tenant = $this->getTenantFromSpot($validated['spot_id']);
         if (!$tenant) {
             return response()->json(['message' => 'Spot not found'], 404);
         }
-
         // Normalize chosen days
         $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
         $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
 
         // Check tenant availability
-        $tenantAvailability = $this->getTenantAvailability($tenant->slug, $chosenDays);
+        $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
+    
         if ($tenantAvailability->isEmpty()) {
             return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
         }
@@ -409,6 +408,11 @@ dd($validated);
         if ($this->isInvalidRecurrentBooking($validated, $tenant)) {
             return response()->json(['message' => 'This space is only available for monthly booking'], 422);
         }
+        if($this->isExpired($validated['book_spot_id'])){
+
+            return response()->json(['message' => 'Expired booking can not modified'], 422);
+        }
+        
 
         // Calculate total duration and amount
         $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
@@ -461,7 +465,7 @@ dd($validated);
             ]);
 
             // Update spot status
-            Spot::where('id', $validated['spot_id'])->update(['book_status' => 'yes']);
+            //Spot::where('id', $validated['spot_id'])->update(['book_status' => 'yes']);
         });
 
         return response()->json(['message' => 'Booking successfully updated'], 200);
@@ -503,82 +507,6 @@ dd($validated);
         return response()->json(['message' => 'Booking successfully canceled'], 200);
     }
 
-    // get bookings using time range
-    // public function getBookings(Request $request)
-    // {
-    //     $validator = Validator::make($request->all(), [
-    //         'booking_type' => 'required|string|in:valid,all,expired,past',
-    //         'start_time'   => 'required_with:end_time|date_format:Y-m-d H:i:s',
-    //         'end_time'     => 'required_with:start_time|date_format:Y-m-d H:i:s|after:start_time',
-    //     ]);
-    
-    //     if ($validator->fails()) {
-    //         return response()->json(['error' => $validator->errors()], 422);
-    //     }
-    
-    //     $validated = $validator->validated();
-    //     $tenantId = Auth::user()->tenant_id;
-    
-    //     $query = BookSpot::with([
-    //         'spot' => function ($query) {
-    //             $query->select('id', 'book_status', 'space_id', 'location_id', 'floor_id', 'tenant_id');
-    //         },
-    //         'spot.space' => function ($query) {
-    //             $query->select('id', 'space_name',  'space_fee', 'space_category_id', 'tenant_id');
-    //         },
-    //         'spot.space.category' => function ($query) {
-    //             $query->select('id', 'category',  'tenant_id');
-    //         },
-    //         'bookedRef' => function ($query) {
-    //             $query->select('id', 'booked_ref');  // Select the correct fields from the booked_refs table
-    //         }
-    //     ])
-    //     ->join('spots', 'book_spots.spot_id', '=', 'spots.id')
-    //     ->join('spaces', 'spots.space_id', '=', 'spaces.id')
-    //     ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
-    //     ->where('spaces.tenant_id', $tenantId)
-    //     ->select(
-    //         'book_spots.id as book_spot_id', 
-    //         'book_spots.start_time', 
-    //         'book_spots.expiry_day', 
-    //         'book_spots.fee', 
-    //         'book_spots.user_id', 
-    //         'book_spots.spot_id', 
-    //         'book_spots.created_at',
-    //         'book_spots.booked_ref_id',
-    //         'book_spots.chosen_days'  // Add this to your select statement
-    //     );
-        
-    
-    //     switch ($validated['booking_type']) {
-    //         case 'valid':
-    //             $query->where('book_spots.expiry_day', '>=', Carbon::now());
-    //             break;
-    
-    //         case 'expired':
-    //             $query->where('book_spots.expiry_day', '<', Carbon::now());
-    //             break;
-    
-    //         case 'past':
-    //             if (!$request->has('start_time') || !$request->has('end_time')) {
-    //                 return response()->json([
-    //                     'error' => 'Both start_time and end_time are required for past bookings'
-    //                 ], 422);
-    //             }
-    //             $query->whereBetween('book_spots.start_time', [
-    //                 $validated['start_time'],
-    //                 $validated['end_time']
-    //             ]);
-    //             break;
-    
-    //         case 'all':
-    //             break;
-    //     }
-    
-    //     $bookings = $query->orderByDesc('book_spots.id')->paginate(15);
-    
-    //     return response()->json(['data' => $bookings], 200);
-    // }
     public function getBookings(Request $request)
 {
     $validator = Validator::make($request->all(), [
@@ -803,7 +731,6 @@ dd($validated);
                 if (!isset($spotsByCategory[$categoryName])) {
                     $spotsByCategory[$categoryName] = [];
                 }
-
                 $spotsByCategory[$categoryName][] = [
                     'spot_id' => $spot->id,
                     'space_name' => $spot->space->space_name,
@@ -917,6 +844,12 @@ dd($validated);
     } catch (\Exception $e) {
         return response()->json(['message' => 'Something went wrong', 'error' => $e->getMessage()], 500);
     }
+}
+private function isExpired($book_spot_id)
+{
+    return BookSpot::where('id', $book_spot_id)
+        ->where('expiry_day', '<', now('Africa/Lagos'))
+        ->exists();
 }
 
 }
