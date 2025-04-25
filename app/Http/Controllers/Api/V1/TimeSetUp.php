@@ -46,8 +46,6 @@ class TimeSetUp extends Controller
      * Store or update multiple operating hours
      */
     public function store(Request $request, $slug)
-
-
     {
         $user = Auth::user();
 
@@ -59,13 +57,13 @@ class TimeSetUp extends Controller
             return response()->json(['message' => 'You are not authorized'], 403);
         }
     
-$validator = Validator::make($request->all(), [
-    'location_id' => 'required|numeric|exists:locations,id',
-    'hours' => 'required|array',
-    'hours.*.day' => 'required|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-    'hours.*.open_time' => 'required|string|date_format:H:i',
-    'hours.*.close_time' => 'required|string|date_format:H:i',
-]);
+        $validator = Validator::make($request->all(), [
+            'location_id' => 'required|numeric|exists:locations,id',
+            'hours' => 'required|array',
+            'hours.*.day' => 'required|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'hours.*.open_time' => 'required|string|date_format:H:i',
+            'hours.*.close_time' => 'required|string|date_format:H:i',
+        ]);
 
 if ($validator->fails()) {
     return response()->json(['errors' => $validator->errors()], 422);
@@ -79,8 +77,15 @@ $location = Location::where('id', $request->location_id)
 })
 ->first();
 
+
+
 if (!$location) {
 return response()->json(['message' => 'Access denied, please contact your admin to do this.'], 403);
+}
+
+$status = WorkspaceHour::where('location_id', $location->id)->exists();
+if ($status) {
+    return response()->json(['message' => 'Operating hours already set for this location. Kindly update if you so please'], 422);
 }
 
         DB::beginTransaction();
@@ -147,17 +152,16 @@ return response()->json(['message' => 'Access denied, please contact your admin 
         $request->validate([
             'location_id' => 'required|numeric|exists:locations,id',
         ]);
-
-        $location = Location::where('id', $request->location_id)
-            ->whereHas('tenant', function ($query) use ($slug) {
-                $query->where('slug', $slug);
-            })
-            ->firstOrFail();
-
-        $deleted = WorkspaceHour::where('location_id', $location->id)
-            ->where('tenant_id', $location->tenant_id)
-            ->delete();
-
+        
+       $deleted = WorkspaceHour::where('location_id', strip_tags($request['location_id']))->get();
+       foreach($deleted as $delete){
+           $delete ->delete();
+           
+       }
+        
+       $deleted = true;
+      
+        
         if ($deleted) {
             return response()->json(['message' => 'Operating hours deleted successfully.']);
         } else {

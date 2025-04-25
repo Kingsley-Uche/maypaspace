@@ -536,6 +536,7 @@ public function initiatePay(Request $request, $slug)
                     'number_weeks' => $validated['number_weeks'] ?? 1,
                     'number_months' => $validated['number_months'] ?? 1,
                     'expiry_day' => $expiry_day,
+                    'start_time' => $chosenDays->first()['start_time'],
                 ]);
                 // Batch insert ReservedSpots
                 $reservedSpotsData = $chosenDays->map(function ($day) use ($validated, $expiry_day) {

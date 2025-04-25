@@ -41,8 +41,8 @@ class SpaceController extends Controller
             'space_discount' => 'required|numeric|gte:1',
         ],
     ['floor_id' => 'This floor does not exist on this workspace, please check and try again',
-        'location_id' => 'This location does not exist on this workspace, please check and try again',
-        'space_category_id' => 'This space category does not exist on this workspace, please check and try again',
+    'location_id' => 'This location does not exist on this workspace, please check and try again',
+    'space_category_id' => 'This space category does not exist on this workspace, please check and try again',
     ]
 );
 
@@ -66,11 +66,7 @@ class SpaceController extends Controller
                 'message' => 'You have already named a Space "' . $validated['name'] . '" in this floor and location'
             ], 422);
         }
-        if(empty($validator->validated()['space_price_hourly']) && empty($validator->validated()['space_price_daily']) 
-        && empty($validator->validated()['space_price_weekly']) && empty($validator->validated()['space_price_monthly']) 
-        && empty($validator->validated()['space_price_semi_nnually']) && empty($validator->validated()['space_price_annually'])){
-            return response()->json(['message' => 'You must provide at least one fee'], 422); }
-
+       
         $space = Space::create([
             'space_name' => htmlspecialchars($validated['name'], ENT_QUOTES, 'UTF-8'),
             'space_number' => htmlspecialchars($validated['space_number'], ENT_QUOTES, 'UTF-8'),

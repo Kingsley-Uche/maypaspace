@@ -89,10 +89,11 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/settings/workspace/time/Single', [TimeSetUp::class,'show']);
         Route::get('/settings/workspace/time/all', [TimeSetUp::class,'index']);
         Route::post('/spot/book', [BookSpotController::class, 'create']);  
-        Route::post('/spot/cancel', [BookSpotController::class, ' cancelBooking']);
+        Route::post('/spot/cancel', [BookSpotController::class, 'cancelBooking']);
         Route::get('/spot/get', [BookSpotController::class, 'getBookings']);  
         Route::post('/spot/update', [BookSpotController::class, 'update']);  
-        Route::get('/spot/available', [BookSpotController::class, 'getUnbookedSpots']);  
+        Route::get('/spot/available', [BookSpotController::class, 'getAllSpots']); 
+        Route::get('/spot/single', [BookSpotController::class, 'getSingle']);  
         Route::post('/logout', [UserAuthController::class, 'logout']);
 
         Route::post('/add-user', [UserFunctionsController::class, 'addUser']);
