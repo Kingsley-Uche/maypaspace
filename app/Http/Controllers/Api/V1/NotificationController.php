@@ -5,11 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use App\Jobs\SendNotificationMail;
-use App\Mail\NotificationMail;
-use Illuminate\Support\Facades\Mail;
 
-use App\Models\User;
 use App\Models\Tenant;
 use App\Models\Notification;
 use App\Models\NotificationRead;
@@ -24,7 +20,6 @@ class NotificationController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'user_type_id' => 'numeric|gte:1|exists:user_types,id',
         ]);
   
          if($validator->fails()){
@@ -34,7 +29,6 @@ class NotificationController extends Controller
          $notification = Notification::create([
             'name' => htmlspecialchars($request->name, ENT_QUOTES, 'UTF-8'),
             'description' => htmlspecialchars($request->description, ENT_QUOTES, 'UTF-8'),
-            'for' => $request->user_type_id, 
             'tenant_id' => $tenant->id
          ]);
 
@@ -115,7 +109,7 @@ class NotificationController extends Controller
     public function togglePublish(Request $request, $tenant_slug, $id){
         $user = $request->user();
 
-        $tenant = $this->checksAndValidations($user, $tenant_slug);
+        $this->checksAndValidations($user, $tenant_slug);
 
         $item = Notification::find($id);
 
@@ -126,17 +120,6 @@ class NotificationController extends Controller
         // Toggle the value
         $item->publish = $item->publish === 'yes' ? 'no' : 'yes';
         $item->save();
-
-
-        if($item->publish === 'yes' && $item->for){
-            $user = User::where('user_type_id', $item->for)->where('tenant_id', $tenant->id)->select('email', 'first_name')->get();
-
-            $response = $this->sendQueuedEmails($user, $item);
-
-            if(!$response){
-                return response()->json(['message' => 'Something went wrong'], 500); 
-            }
-        }
 
         return response()->json([
             'message' => 'Publish status updated successfully',
@@ -185,7 +168,7 @@ class NotificationController extends Controller
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
-        if($user->tenant_id !== $tenant->id){
+        if($user->tenant_id != $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
         
@@ -216,58 +199,16 @@ class NotificationController extends Controller
 
         //We identify the tenant using slug
         $tenant = $this->checkTenant($tenant_slug);
+        
 
-        if($user->user_type_id !== 1 && $user->user_type_id !== 2){
+        if($user->user_type_id != 1 && $user->user_type_id != 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
-        if($user->tenant_id !== $tenant->id){
+        if($user->tenant_id != $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
         return $tenant;
-    }
-
-    // private function sendQueuedEmails($user, $item)
-    // {
-
-    //     foreach ($user as $recipient) {
-    //         $email = $recipient['email'];
-    //         $data = [
-    //             'name' => $recipient['first_name'],
-    //             'title' => $item->name,
-    //             'message' => $item->description,
-    //         ];
-
-    //         $response = SendNotificationMail::dispatch($email, $data);
-    //     }
-
-    //     return $response;
-    // }
-
-    private function sendQueuedEmails($user, $item)
-    {
-        $response = '';
-
-        foreach ($user as $recipient) {
-            $email = $recipient['email'];
-            $data = [
-                'name' => $recipient['first_name'],
-                'title' => $item->name,
-                'message' => $item->description,
-            ];
-
-            // Using Laravel's Mail functionality to send an email verification link
-            try {
-                $response = Mail::to($email)->send(new NotificationMail($data));
-            } catch (\Exception $e) {
-                // Log the error for debugging purposes
-                \Log::error('Error sending verification email: ' . $e->getMessage());
-                return response()->json(['message'=> $e->getMessage()],422);
-            }
-        }
-
-        return $response;
-
     }
 }
