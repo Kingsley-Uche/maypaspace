@@ -22,6 +22,13 @@ class BookSpotController extends Controller
 {
    try {
         $validated = $this->validateBookingRequest($request);
+        $request->validate([
+            'spot_id' => 'required|numeric|exists:spots,id',
+            'user_id' => 'required|numeric|exists:users,id',
+            'number_weeks' => 'required|numeric|min:1|max:3',
+            'number_months' => 'required|numeric|min:0|max:12',
+            'book_spot_id'=>'required|numeric|min:0',
+        ]);
 
         $loggedUser = Auth::user();
 
