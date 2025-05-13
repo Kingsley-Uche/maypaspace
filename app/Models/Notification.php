@@ -10,6 +10,7 @@ class Notification extends Model
     protected $fillable = [
         'name',
         'description',
+        'for',
         'tenant_id',
         'publish'
     ];

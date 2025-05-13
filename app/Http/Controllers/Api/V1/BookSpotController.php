@@ -22,18 +22,20 @@ class BookSpotController extends Controller
 {
    try {
         $validated = $this->validateBookingRequest($request);
+
         $loggedUser = Auth::user();
 
         $tenant = $this->getTenantFromSpot($validated['spot_id']);
+
         if (!$tenant) {
             return response()->json(['message' => 'Spot not found'], 404);
         }
 
         $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
+        
         $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
 
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
-    
         if ($tenantAvailability->isEmpty()) {
             return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
         }
@@ -41,15 +43,16 @@ class BookSpotController extends Controller
         if (!$this->areAllDaysAvailable($chosenDays, $tenantAvailability)) {
             return response()->json(['message' => 'One or more days are not available for booking'], 422);
         }
+        
 
         if (!$this->areChosenTimesValid($chosenDays, $tenantAvailability)) {
             return response()->json(['message' => 'Chosen time is outside available hours'], 422);
         }
-
+        ;
         if ($this->hasConflicts($validated['spot_id'], $chosenDays)) {
             return $this->handleConflictResponse($validated['spot_id'], $chosenDays);
         }
-
+        
         $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
     
 
@@ -127,12 +130,13 @@ private function validateBookingRequest(Request $request)
         'type' => 'required|in:one-off,recurrent',
         'number_weeks' => 'nullable|numeric|min:1|max:3',
         'number_months' => 'nullable|numeric|min:0|max:12',
-        'chosen_days' => 'required_if:type,recurrent|array',
+        //'chosen_days' => 'required_if:type,recurrent|array',
         'book_spot_id'=>'nullable|numeric|min:0',
         'chosen_days.*.day' => 'required|string|in:sunday,monday,tuesday,wednesday,thursday,friday,saturday',
         'chosen_days.*.start_time' => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
         'chosen_days.*.end_time' => 'required|date_format:Y-m-d H:i:s|after:chosen_days.*.start_time',
     ])->validate();
+    
 }
 
 private function getTenantFromSpot($spotId)
@@ -169,6 +173,7 @@ private function calculateExpiryDate($type, $chosenDays, $validated)
 
 private function getTenantAvailability($slug, $chosenDays)
 {
+    
     $cacheKey = "tenant_availability_{$slug}_" . md5(implode(',', $chosenDays->pluck('day')->sort()->toArray()));
     return Cache::remember($cacheKey, now()->addHour(), function () use ($slug, $chosenDays) {
         return TimeSetUpModel::join('tenants', 'time_set_ups.tenant_id', '=', 'tenants.id')

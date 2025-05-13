@@ -16,10 +16,14 @@ return new class extends Migration
             $table->string('name');
             $table->text('description');
             $table->enum('publish', ['yes', 'no'])->default('no');
+            $table->unsignedBigInteger('for')->nullable();
             $table->unsignedBigInteger('tenant_id');
             $table->timestamps();
 
+            $table->foreign('for')->references('id')->on('user_types')->onDelete('cascade');
             $table->foreign('tenant_id')->references('id')->on('tenants')->onDelete('CASCADE');
+
+            $table->index('for');
         });
     }
 

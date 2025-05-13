@@ -42,6 +42,12 @@ class UserType extends Model
         return $this->hasMany(User::class, 'user_type_id');
     }
 
+    public function discount()
+    {
+        return $this->hasOne(Discount::class);
+    }
+
+
     protected static function booted()
     {
         static::addGlobalScope(new TenantScope());

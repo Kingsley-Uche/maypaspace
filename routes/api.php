@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\{
     PaymentController,
     TimeSetUp,
     NotificationController,
+    DiscountController,
 };
 use App\Http\Middleware\EnsureAdmin;
 
@@ -165,6 +166,15 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/notification/toggle-publish/{id}', [NotificationController::class, 'togglePublish']);
         Route::post('/notification/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::get('/notification/view-my-notifications', [NotificationController::class, 'userIndex']);
+
+        //CRUD for Discount
+        Route::post('/discount/create', [DiscountController::class, 'create']);
+        Route::post('/discount/update/{id}', [DiscountController::class, 'update']);
+        Route::get('/discount/list-discounts', [DiscountController::class, 'index']);
+        Route::get('/discount/view/{id}', [DiscountController::class, 'viewOne']);
+        Route::post('/discount/delete', [DiscountController::class, 'destroy']);
     });
+
+
 
 });
