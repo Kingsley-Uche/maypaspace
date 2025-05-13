@@ -26,8 +26,7 @@ class BookSpotController extends Controller
             'spot_id' => 'required|numeric|exists:spots,id',
             'user_id' => 'required|numeric|exists:users,id',
             'number_weeks' => 'required|numeric|min:1|max:3',
-            'number_months' => 'required|numeric|min:0|max:12',
-            'book_spot_id'=>'required|numeric|min:0',
+            'number_months' => 'nullable|numeric|min:0|max:12',
         ]);
 
         $loggedUser = Auth::user();
