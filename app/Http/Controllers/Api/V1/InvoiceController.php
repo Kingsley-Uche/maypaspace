@@ -1,42 +1,61 @@
 <?php
 
-namespace App\Http\Controllers;
-
+namespace App\Http\Controllers\Api\V1;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Invoice;
+use App\Models\InvoiceModel;
+use App\Models\User;
+use App\Models\Tenant;
 
 class InvoiceController extends Controller
 {
     // CREATE
-    public function create($data)
+    public function create($data,$spot_id)
     {
+        
         $validator = Validator::make((array)$data, [
             'user_id' => 'required|exists:users,id',
-            'invoice_ref' => 'required|exists:book_spots,invoice_ref',
             'amount' => 'required|numeric',
-            'book_spot_id' => 'required|numeric|exists:book_spots,id',
-            'booked_user_id' => 'required|numeric|exists:users,id',
+            'book_spot_id' => 'required|numeric',
+            'booked_by_user_id' => 'required|numeric',
+            'tenant_id' => 'required|numeric|',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 422);
+            return $data = [
+                'error' => $validator->errors()
+            ];
         }
 
+    
         $validated = $validator->validated();
+        $validated['invoice_ref'] = invoiceModel::generateInvoiceRef();
 
-        $invoice = Invoice::create($validated);
+        $validated['status'] = 'pending';
+        $invoice = InvoiceModel::create($validated);
 
-        return response()->json([
-            'message' => 'Invoice created successfully',
-            'invoice' => $invoice
-        ], 201);
+
+        if (!$invoice) {
+            return [
+                'error' => 'Invoice creation failed'
+            ];
+        }
+        // Assuming you have a method to send the invoice to the user
+        // $this->sendInvoice($invoice);
+      return [
+    'message' => 'Invoice created successfully',
+    'invoice_ref' => $invoice->invoice_ref,
+    'invoice' => $invoice,
+    'success' => true
+];
+
     }
 
     // READ (all invoices)
     public function index()
     {
-        $invoices = Invoice::all();
+        $invoices = InvoiceModel::all();
 
         return response()->json([
             'invoices' => $invoices
@@ -46,7 +65,7 @@ class InvoiceController extends Controller
     // READ (single invoice by ID)
     public function show($id)
     {
-        $invoice = Invoice::find($id);
+        $invoice = InvoiceModel::find($id);
 
         if (!$invoice) {
             return response()->json(['error' => 'Invoice not found'], 404);
@@ -58,7 +77,7 @@ class InvoiceController extends Controller
     // UPDATE
     public function update($id, $data)
     {
-        $invoice = Invoice::find($id);
+        $invoice = InvoiceModel::find($id);
 
         if (!$invoice) {
             return response()->json(['error' => 'Invoice not found'], 404);
@@ -89,7 +108,7 @@ class InvoiceController extends Controller
     // DELETE
     public function destroy($id)
     {
-        $invoice = Invoice::find($id);
+        $invoice = InvoiceModel::find($id);
 
         if (!$invoice) {
             return response()->json(['error' => 'Invoice not found'], 404);
@@ -100,5 +119,15 @@ class InvoiceController extends Controller
         return response()->json([
             'message' => 'Invoice deleted successfully'
         ]);
+    }
+   
+     private function getTenantId($user_id)
+    {
+        $user = User::find($user_id);
+        if (!$user) {
+            return null;
+        }
+
+        return $user->tenant_id;
     }
 }
