@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\{
     TimeSetUp,
     NotificationController,
     DiscountController,
+    AnalyticsController,
 };
 use App\Http\Middleware\EnsureAdmin;
 
@@ -173,6 +174,9 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::get('/discount/list-discounts', [DiscountController::class, 'index']);
         Route::get('/discount/view/{id}', [DiscountController::class, 'viewOne']);
         Route::post('/discount/delete', [DiscountController::class, 'destroy']);
+
+        //Analytics
+        Route::get('/analytics/list', [AnalyticsController::class, 'index']);
     });
 
 
