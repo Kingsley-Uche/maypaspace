@@ -34,5 +34,13 @@ class InvoiceModel extends Model
 
     return $code;
 }
+public function BookSpot(){
 
+     return $this->belongsTo(BookSpot::class, 'book_spot_id');
+}
+public function user()
+{
+    return $this->belongsTo(User::class, 'user_id');    
+
+}
 }

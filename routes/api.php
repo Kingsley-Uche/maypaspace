@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\{
     DiscountController,
     TaxController,
     BankAccountController,
+    InvoiceController
 };
 use App\Http\Middleware\EnsureAdmin;
 Route::prefix('system-admin')->group(function(){
@@ -186,6 +187,14 @@ Route::get('/banks/{id}', [BankController::class, 'show']);
 Route::post('/bank/create', [BankController::class, 'store']);
 Route::post('/banks/update/{id}', [BankController::class, 'update']);
 Route::post('/banks/delete', [BankController::class, 'destroy']);
+
+//crud for invoice
+
+Route::get('/invoices/all', [InvoiceController::class, 'index']);
+Route::get('/invoice/show/{id}', [InvoiceController::class, 'show']);
+Route::post('/invoice/create', [InvoiceController::class, 'create']);
+Route::post('/invoice/update/{id}', [InvoiceController::class, 'update']);
+Route::post('/invoice/delete', [InvoiceController::class, 'destroy']);
 
     });
 
