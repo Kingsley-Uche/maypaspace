@@ -1,5 +1,4 @@
 <?php
-<?php
 
 namespace App\Http\Controllers\Api\V1;
 
@@ -692,6 +691,7 @@ class PaymentController extends Controller
         ]);
     }
 }
+
 // namespace App\Http\Controllers\Api\V1;
 
 // use App\Http\Controllers\Controller;
