@@ -149,6 +149,20 @@
     </table>
 
     <div class="footer">
+        <p class="description">
+            <strong>Information:</strong> Kindly make payment to the information below to secure your researvation.
+        </p>
+        <p class="description">
+           <strong>Bank Name:</strong> {{ $invoice['bank_details']['bank_name'] }}<br>         
+        </p>
+         <p class="description">
+           <strong>Account Name :</strong> {{ $invoice['bank_details']['account_name'] }}<br>         
+        </p>
+        <p class="description">
+           <strong>Account Number :</strong> {{ $invoice['bank_details']['account_number'] }}<br>         
+        </p>
+        <p class="description">
+            <strong>Note:</strong> This invoice is generated automatically. Please do not reply to this email.
         <p>Thank you for your patronage!</p>
     </div>
 </div>

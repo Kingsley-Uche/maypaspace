@@ -20,4 +20,8 @@ class Tenant extends Model
     {
         return $this->hasMany(Location::class);
     }
+    public function bankAccounts()
+    {
+        return $this->hasMany(BankModel::class, 'tenant_id');
+    }
 }

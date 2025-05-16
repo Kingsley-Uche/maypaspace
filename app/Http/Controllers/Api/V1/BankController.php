@@ -1,10 +1,11 @@
 <?php
 
 namespace App\Http\Controllers\APi\V1;
-
+use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\BankModel;
+use App\Models\Tenant;
 
 class BankController extends Controller
 {
@@ -23,15 +24,17 @@ class BankController extends Controller
         $validator = Validator::make($request->all(), [
             'account_name' => 'required|string|max:255',
             'account_number' => 'required|string|max:20',
-            'bank' => 'required|string|max:100',
+            'bank_name' => 'required|string|max:100',
             'location_id' => 'required|numeric|exists:locations,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
+$data = $validator->validated();
+$data['tenant_id'] = $tenant->id; // Set the tenant ID from the tenant object
 
-        $account = BankModel::create($validator->validated());
+        $account = BankModel::create($data);
 
         return response()->json([
             'message' => 'Bank account created successfully.',

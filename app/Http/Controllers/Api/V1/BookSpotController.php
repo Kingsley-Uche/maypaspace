@@ -42,11 +42,12 @@ public function create(Request $request, $slug)
         }
 
         $tenant = $this->getTenantFromSpot($validated['spot_id']);
+    
         if (!$tenant) {
             return response()->json(['message' => 'Spot not found'], 404);
         }
 
-        $tenantData = Tenant::where('slug', $slug)->first();
+        $tenantData = Tenant::with('bankAccounts')->where('slug', $slug)->first();
         $invoiceUser = User::select('first_name', 'last_name', 'email')->find($validated['user_id']);
 
         $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
@@ -168,7 +169,7 @@ public function create(Request $request, $slug)
         $invoiceRef = $invoiceResponse['invoice']['invoice_ref'];
         $bookSpot->update(['invoice_ref' => $invoiceRef]);
         SpacePaymentModel::where('payment_ref', $reference)->update(['invoice_ref' => $invoiceRef]);
-$chosenDays = json_decode($bookSpot->chosen_days, true);
+        $chosenDays = json_decode($bookSpot->chosen_days, true);
         // Generate Schedule
         $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay));
 
@@ -185,6 +186,7 @@ $chosenDays = json_decode($bookSpot->chosen_days, true);
             'taxes' => $tax_data,
             'invoice_ref' => $invoiceRef,
             'schedule' => $schedule,
+            'bank_details' =>$tenantData->bankAccounts->where('location_id', $tenant->location_id)->first(),
         ];
 
         DB::commit();

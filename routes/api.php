@@ -21,7 +21,7 @@ use App\Http\Controllers\Api\V1\{
     NotificationController,
     DiscountController,
     TaxController,
-    BankAccountController,
+    BankController,
     InvoiceController
 };
 use App\Http\Middleware\EnsureAdmin;
