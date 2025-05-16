@@ -22,7 +22,7 @@ class LocationController extends Controller
 
         $permission = $userType[0]['user_type']['create_location'];
 
-        if($user->user_type_id !== 1 && $permission !== "yes"){
+        if((int)$user->user_type_id !== 1 && $permission !== "yes"){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
         //validate request data
@@ -86,7 +86,7 @@ class LocationController extends Controller
 
         $permission = $userType[0]['user_type']['update_location'];
 
-        if($user->user_type_id !== 1 && $permission !== "yes"){
+        if((int)$user->user_type_id !== 1 && $permission !== "yes"){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate request data
@@ -136,7 +136,7 @@ class LocationController extends Controller
 
         $permission = $userType[0]['user_type']['delete_location'];
 
-        if($user->user_type_id !== 1 && $permission !== "yes"){
+        if((int)$user->user_type_id !== 1 && $permission !== "yes"){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate the ID

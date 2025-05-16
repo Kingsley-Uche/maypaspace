@@ -145,7 +145,7 @@ class CategoryController extends Controller
 
         $user = $request->user();
 
-        if($user->user_type_id !== 1 && $user->user_type_id !== 2){
+        if((int)$user->user_type_id !== 1 && (int)$user->user_type_id !== 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate the ID
@@ -160,7 +160,7 @@ class CategoryController extends Controller
         //find the category to be deleted using the Id
         $category = Category::findOrFail($request->id);
 
-        if($category->tenant_id !== $tenant->id){
+        if((int)$category->tenant_id !== $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
