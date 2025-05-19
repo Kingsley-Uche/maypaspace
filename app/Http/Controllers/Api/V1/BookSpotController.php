@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\{BookSpot, Spot, Tenant,Location, User, Space, BookedRef, SpacePaymentModel,TimeSetUpModel,ReservedSpots};
+use App\Http\Controllers\Api\V1\InvoiceController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -13,27 +14,46 @@ use Carbon\CarbonPeriod;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use App\Models\InvoiceModel;
+use App\Models\TaxModel;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Mail\BookingInvoiceMail;
+use Illuminate\Support\Facades\Mail;
+
 class BookSpotController extends Controller
 {
-    
-    // Update an existing booking
 
-    public function create(Request $request, $slug)
+        
+public function create(Request $request, $slug)
 {
-   try {
+    DB::beginTransaction();
+
+    try {
         $validated = $this->validateBookingRequest($request);
         $loggedUser = Auth::user();
 
+        // Early validation
+        if ($validated['type'] === 'one-off' && ($validated['number_weeks'] || $validated['number_months'])) {
+            return response()->json(['message' => 'One-off booking cannot have weeks or months specified'], 422);
+        }
+
+        if ($validated['type'] === 'recurrent' && (!$validated['number_weeks'] && !$validated['number_months'])) {
+            return response()->json(['message' => 'Recurrent booking must have weeks or months specified'], 422);
+        }
+
         $tenant = $this->getTenantFromSpot($validated['spot_id']);
+    
         if (!$tenant) {
             return response()->json(['message' => 'Spot not found'], 404);
         }
+
+        $tenantData = Tenant::with('bankAccounts')->where('slug', $slug)->first();
+        $invoiceUser = User::select('first_name', 'last_name', 'email')->find($validated['user_id']);
 
         $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
         $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
 
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
-    
         if ($tenantAvailability->isEmpty()) {
             return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
         }
@@ -47,76 +67,175 @@ class BookSpotController extends Controller
         }
 
         if ($this->hasConflicts($validated['spot_id'], $chosenDays)) {
-            return $this->handleConflictResponse($validated['spot_id'], $chosenDays);
+            return response()->json(['message' => 'Spot already reserved for selected time'], 409);
         }
+        // Prevent duplicate reservations for the same user/time/spot
+        foreach ($chosenDays as $day) {
+            $exists = ReservedSpots::where([
+                'user_id' => $validated['user_id'],
+                'spot_id' => $validated['spot_id'],
+                'day' => $day['day'],
+                'start_time' => $day['start_time'],
+                'end_time' => $day['end_time'],
+            ])->exists();
 
-        $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
-    
+            if ($exists) {
+                return response()->json([
+                    'message' => "This spot is already reserved for user on {$day['day']} between {$day['start_time']} and {$day['end_time']}",
+                ], 409);
+            }
+        }
 
         if ($this->isInvalidRecurrentBooking($validated, $tenant)) {
             return response()->json(['message' => 'This space is only available for monthly booking'], 422);
         }
 
+        // Calculate fees
+        $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
         $amount = $this->calculateBookingAmount($validated, $tenant, $totalDuration);
-        // At this point, you can proceed with saving the booking...
 
-        $booked = new BookedRef();
-                $reference = $booked->generateRef($slug);
-        
-                    // Create BookedRef with payment reference
-                    $bookedRef = BookedRef::create([
-                        'user_id' => $validated['user_id'],
-                        'booked_by_user' => $loggedUser->id,
-                       'spot_id' => $validated['spot_id'],
-                        'fee' => $amount,
-                        'payment_ref' =>'N/A',
-                        'booked_ref'=>$reference
-                    ]);
-        
-                    // Create BookSpot record
-                    $bookSpot = BookSpot::create([
-                        'spot_id' => $validated['spot_id'],
-                        'user_id' => $validated['user_id'],
-                        'booked_by_user' => $loggedUser->id,
-                        'booked_ref_id' => $bookedRef->id,
-                        'type' => $validated['type'],
-                        'chosen_days' => json_encode($chosenDays->toArray()),
-                        'expiry_day' => $expiryDay,
-                        'start_time' => $chosenDays->first()['start_time'],
-                    ]);
-                
-        
-                    $reservedSpotsData = $chosenDays->map(function ($day) use ($validated, $expiryDay, $bookSpot) {
-                        return [
-                            'user_id' => $validated['user_id'],
-                            'spot_id' => $validated['spot_id'],
-                            'day' => $day['day'],
-                            'start_time' => $day['start_time'],
-                            'end_time' => $day['end_time'],
-                            'expiry_day' => $expiryDay,
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                            'booked_spot_id' => $bookSpot->id,
-                        ];
-                    })->toArray();
-                    ReservedSpots::insert($reservedSpotsData);
-                    SpacePaymentModel::create([
-                        'user_id' => $validated['user_id'],
-                        'spot_id' => $validated['spot_id'],
-                        'tenant_id' => $tenant->tenant_id,
-                        'amount' => $amount,
-                        'payment_status' => 'pending',
-                        'payment_ref' => $reference,
-                        'payment_method' => 'postpaid',
-                    ]);
-                    return response()->json([
-                        'message' => 'Booking successfully created',
-                    ], 201);
+        // Apply Taxes
+        $tax_data = [];
+        foreach (TaxModel::where('tenant_id', $tenant->tenant_id)->get() as $tax) {
+            $taxAmount = $amount * ($tax->percentage / 100);
+            $amount += $taxAmount;
+            $tax_data[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
+        }
+
+        $reference = (new BookedRef)->generateRef($slug);
+
+        $bookedRef = BookedRef::firstOrCreate([
+            'user_id' => $validated['user_id'],
+            'spot_id' => $validated['spot_id'],
+            'booked_by_user' => $loggedUser->id,
+            'booked_ref' => $reference,
+        ], [
+            'fee' => $amount,
+            'payment_ref' => 'N/A',
+        ]);
+
+        $bookSpot = BookSpot::firstOrCreate([
+            'spot_id' => $validated['spot_id'],
+            'user_id' => $validated['user_id'],
+            'booked_by_user' => $loggedUser->id,
+            'booked_ref_id' => $bookedRef->id,
+            'type' => $validated['type'],
+        ], [
+            'chosen_days' => json_encode($chosenDays->toArray()),
+            'expiry_day' => $expiryDay,
+            'start_time' => $chosenDays->first()['start_time'],
+            'fee' => $amount,
+        ]);
+
+        foreach ($chosenDays as $day) {
+            ReservedSpots::create([
+                'user_id' => $validated['user_id'],
+                'spot_id' => $validated['spot_id'],
+                'day' => $day['day'],
+                'start_time' => $day['start_time'],
+                'end_time' => $day['end_time'],
+                'expiry_day' => $expiryDay,
+                'booked_spot_id' => $bookSpot->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        SpacePaymentModel::updateOrCreate([
+            'user_id' => $validated['user_id'],
+            'spot_id' => $validated['spot_id'],
+            'tenant_id' => $tenant->tenant_id,
+            'payment_ref' => $reference,
+        ], [
+            'amount' => $amount,
+            'payment_status' => 'pending',
+            'payment_method' => 'postpaid',
+        ]);
+
+        $invoiceController = new InvoiceController();
+        $invoiceResponse = $invoiceController->create([
+            'user_id' => $validated['user_id'],
+            'amount' => $amount,
+            'book_spot_id' => $bookSpot->id,
+            'booked_by_user_id' => $loggedUser->id,
+            'tenant_id' => $tenant->tenant_id,
+        ], $validated['spot_id']);
+
+        if (is_array($invoiceResponse) && isset($invoiceResponse['error'])) {
+            DB::rollBack();
+            return response()->json(['message' => 'Invoice not generated', 'error' => $invoiceResponse['error']], 422);
+        }
+
+        $invoiceRef = $invoiceResponse['invoice']['invoice_ref'];
+        $bookSpot->update(['invoice_ref' => $invoiceRef]);
+        SpacePaymentModel::where('payment_ref', $reference)->update(['invoice_ref' => $invoiceRef]);
+        $chosenDays = json_decode($bookSpot->chosen_days, true);
+        // Generate Schedule
+        $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay));
+
+        $invoiceData = [
+            'user_id' => $validated['user_id'],
+            'space_price' => $tenant->space->space_fee,
+            'total_price' => $amount,
+            'space_category' => $tenant->space->category->category,
+            'space' => $tenant->space->space_name,
+            'booked_by_user' => "{$loggedUser->first_name} {$loggedUser->last_name}",
+            'user_invoice' => "{$invoiceUser->first_name} {$invoiceUser->last_name}",
+            'tenant_name' => $tenantData->company_name,
+            'book_data' => $bookSpot,
+            'taxes' => $tax_data,
+            'invoice_ref' => $invoiceRef,
+            'schedule' => $schedule,
+            'bank_details' =>$tenantData->bankAccounts->where('location_id', $tenant->location_id)->first(),
+        ];
+
+        DB::commit();
+
+        // Send invoice via email
+        Mail::to($invoiceUser->email)->send(new BookingInvoiceMail($invoiceData));
+
+        return response()->json([
+            'message' => 'Booking successfully created',
+            'booked_ref' => $reference,
+        ], 201);
 
     } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error("Booking error: " . $e->getMessage());
         return response()->json(['message' => 'Something went wrong', 'error' => $e->getMessage()], 500);
     }
 }
+
+/**
+ * Generate weekly recurring schedule until expiry
+ */
+private function generateSchedule(array $chosenDays, Carbon $expiryDate): array
+{
+    $schedule = [];
+
+    foreach ($chosenDays as $day) {
+        $weekday = strtolower($day['day']);
+        $startTime = Carbon::parse($day['start_time'])->format('H:i:s');
+        $endTime = Carbon::parse($day['end_time'])->format('H:i:s');
+        $current = Carbon::parse($day['start_time'])->copy();
+
+        while ($current->lte($expiryDate)) {
+            $schedule[] = [
+                'day' => $weekday,
+                'date' => $current->toDateString(),
+                'start_time' => $current->format('Y-m-d H:i:s'),
+                'end_time' => $current->copy()->setTimeFromTimeString($endTime)->format('Y-m-d H:i:s'),
+            ];
+
+            $current->addWeek();
+        }
+    }
+
+    usort($schedule, fn($a, $b) => strtotime($a['start_time']) <=> strtotime($b['start_time']));
+    return $schedule;
+}
+
+
 
 
 private function validateBookingRequest(Request $request)
@@ -125,14 +244,15 @@ private function validateBookingRequest(Request $request)
         'spot_id' => 'required|numeric|exists:spots,id',
         'user_id' => 'required|numeric|exists:users,id',
         'type' => 'required|in:one-off,recurrent',
-        'number_weeks' => 'nullable|numeric|min:1|max:3',
+        'number_weeks' => 'nullable|numeric|min:0|max:3',
         'number_months' => 'nullable|numeric|min:0|max:12',
-        'chosen_days' => 'required_if:type,recurrent|array',
+        //'chosen_days' => 'required_if:type,recurrent|array',
         'book_spot_id'=>'nullable|numeric|min:0',
         'chosen_days.*.day' => 'required|string|in:sunday,monday,tuesday,wednesday,thursday,friday,saturday',
         'chosen_days.*.start_time' => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
         'chosen_days.*.end_time' => 'required|date_format:Y-m-d H:i:s|after:chosen_days.*.start_time',
     ])->validate();
+    
 }
 
 private function getTenantFromSpot($spotId)
@@ -169,6 +289,7 @@ private function calculateExpiryDate($type, $chosenDays, $validated)
 
 private function getTenantAvailability($slug, $chosenDays)
 {
+    
     $cacheKey = "tenant_availability_{$slug}_" . md5(implode(',', $chosenDays->pluck('day')->sort()->toArray()));
     return Cache::remember($cacheKey, now()->addHour(), function () use ($slug, $chosenDays) {
         return TimeSetUpModel::join('tenants', 'time_set_ups.tenant_id', '=', 'tenants.id')
@@ -418,6 +539,7 @@ public function update(Request $request, $slug)
         $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
         $amount = $this->calculateBookingAmount($validated, $tenant, $totalDuration);
 
+
         // Update within a transaction
         DB::transaction(function () use ($validated, $booking, $chosenDays, $expiryDay, $amount, $tenant, $loggedUser) {
             // Update BookedRef
@@ -463,9 +585,6 @@ public function update(Request $request, $slug)
                 'tenant_id' => $tenant->tenant_id,
                 'amount' => $amount,
             ]);
-
-            // Update spot status
-            //Spot::where('id', $validated['spot_id'])->update(['book_status' => 'yes']);
         });
 
         return response()->json(['message' => 'Booking successfully updated'], 200);

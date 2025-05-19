@@ -29,7 +29,7 @@ class SystemAdminFunctionsController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'phone' => 'required|unique:users,phone|regex:/^([0-9\s\-\+\(\)]*)$/',
+            'phone' => 'required|numeric|unique:users,phone|regex:/^([0-9\s\-\+\(\)]*)$/',
             'company_no_location' => 'required|numeric|gte:1',
             'company_countries' => 'required|array',
             'company_countries.*' => 'string',

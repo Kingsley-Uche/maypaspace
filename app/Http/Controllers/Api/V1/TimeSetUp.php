@@ -19,10 +19,13 @@ class TimeSetUp extends Controller
      */
     public function index(Request $request, $slug)
     {
+        $request->validate([
+            'location_id' => 'required|numeric|exists:locations,id',
+        ]);
 
         $user = Auth::user();
 
-        $location = Location::where('id', $request->location_id)
+        $location = Location::with(['tenants'])->where('id', $request->location_id)
         ->where('created_by_user_id', $user->id)
         ->whereHas('tenants', function ($query) use ($slug) {
             $query->where('slug', $slug);

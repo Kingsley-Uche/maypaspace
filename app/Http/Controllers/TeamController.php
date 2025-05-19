@@ -43,7 +43,7 @@ class TeamController extends Controller
             return response()->json(['error' => $validator->errors()], 422);
         }
 
-        //The is the Logic to handle the manager column in the Teams table. If you want to add a new user as manager of a new team, This will check if first name is provided in the input.
+        //This is the Logic to handle the manager column in the Teams table. If you want to add a new user as manager of a new team, This will check if first name is provided in the input.
         if($request->has('first_name')){
             $validator = Validator::make($request->all(), [
                 'first_name' => 'required|string|max:255',

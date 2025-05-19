@@ -189,7 +189,7 @@ class UserTypeController extends Controller
             return response()->json(['message' => 'Tenant not found'], 404);
         }
 
-        if($user->tenant_id !== $tenant->id){
+        if((int)$user->tenant_id !== $tenant->id){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -209,7 +209,7 @@ class UserTypeController extends Controller
 
         $userToview = UserType::where('id', $id)->firstOrFail();
 
-        if($userToview->tenant_id !== $tenant->id){
+        if((int)$userToview->tenant_id !== $tenant->id){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -227,7 +227,7 @@ class UserTypeController extends Controller
         }
 
         //this ensures only an owner can delete a user type
-        if($user->user_type_id !== 1){
+        if((int)$user->user_type_id !== 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -248,7 +248,7 @@ class UserTypeController extends Controller
         $userType = UserType::findOrFail($request->id);
 
         //this ensures a tenant can only delete user types they created themselves
-        if($userType->tenant_id !== $tenant->id){
+        if((int)$userType->tenant_id !== $tenant->id){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 

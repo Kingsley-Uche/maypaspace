@@ -228,7 +228,7 @@ class SpaceController extends Controller
             abort(response()->json(['message' => 'Tenant not found'], 404));
         }
 
-        if ($user->tenant_id !== $tenant->id) {
+        if ((int)$user->tenant_id !== $tenant->id) {
             abort(response()->json(['message' => 'You are not authorized'], 403));
         }
 

@@ -19,10 +19,12 @@ use App\Http\Controllers\Api\V1\{
     PaymentController,
     TimeSetUp,
     NotificationController,
+    DiscountController,
+    TaxController,
+    BankController,
+    InvoiceController
 };
 use App\Http\Middleware\EnsureAdmin;
-
-
 Route::prefix('system-admin')->group(function(){
     Route::post('/login', [SystemAdminAuthController::class, 'login']);
 
@@ -165,6 +167,37 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::post('/notification/toggle-publish/{id}', [NotificationController::class, 'togglePublish']);
         Route::post('/notification/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::get('/notification/view-my-notifications', [NotificationController::class, 'userIndex']);
+
+        //CRUD for Discount
+        Route::post('/discount/create', [DiscountController::class, 'create']);
+        Route::post('/discount/update/{id}', [DiscountController::class, 'update']);
+        Route::get('/discount/list-discounts', [DiscountController::class, 'index']);
+        Route::get('/discount/view/{id}', [DiscountController::class, 'viewOne']);
+        Route::post('/discount/delete', [DiscountController::class, 'destroy']);
+
+        // Tax CRUD
+Route::get('/taxes', [TaxController::class, 'index']);
+Route::get('/taxes/{id}', [TaxController::class, 'show']);
+Route::post('/taxes/create', [TaxController::class, 'store']);
+Route::post('/taxes/update/{id}', [TaxController::class, 'update']);
+Route::post('/taxes/delete/{id}', [TaxController::class, 'destroy']);
+// CRUD for bank account
+Route::get('/banks', [BankController::class, 'index']);
+Route::get('/banks/{id}', [BankController::class, 'show']);
+Route::post('/bank/create', [BankController::class, 'store']);
+Route::post('/banks/update/{id}', [BankController::class, 'update']);
+Route::post('/banks/delete', [BankController::class, 'destroy']);
+
+//crud for invoice
+
+Route::get('/invoices/all', [InvoiceController::class, 'index']);
+Route::get('/invoice/show/{id}', [InvoiceController::class, 'show']);
+Route::post('/invoice/create', [InvoiceController::class, 'create']);
+Route::post('/invoice/update/{id}', [InvoiceController::class, 'update']);
+Route::post('/invoice/delete', [InvoiceController::class, 'destroy']);
+
     });
+
+
 
 });

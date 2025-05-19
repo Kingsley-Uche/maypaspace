@@ -168,7 +168,7 @@ class NotificationController extends Controller
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
-        if($user->tenant_id !== $tenant->id){
+        if($user->tenant_id != $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
         
@@ -199,12 +199,13 @@ class NotificationController extends Controller
 
         //We identify the tenant using slug
         $tenant = $this->checkTenant($tenant_slug);
+        
 
-        if($user->user_type_id !== 1 && $user->user_type_id !== 2){
+        if($user->user_type_id != 1 && $user->user_type_id != 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
-        if($user->tenant_id !== $tenant->id){
+        if($user->tenant_id != $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
