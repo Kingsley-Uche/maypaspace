@@ -1,86 +1,82 @@
 <?php
 
 namespace App\Http\Controllers\Api\V1;
+
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\InvoiceModel;
 use App\Models\User;
 use App\Models\Tenant;
+use App\Models\SpacePaymentModel;
 use Carbon\Carbon;
-use Carbon\CarbonPeriod;
+
 class InvoiceController extends Controller
 {
     // CREATE
-    public function create($data,$spot_id)
+    public function create(array $data, $spot_id)
     {
-        
-                    $validator = Validator::make((array)$data, [
-                        'user_id' => 'required|exists:users,id',
-                        'amount' => 'required|numeric',
-                        'book_spot_id' => 'required|numeric',
-                        'booked_by_user_id' => 'required|numeric',
-                        'tenant_id' => 'required|numeric|',
-                    ]);
+        $validator = Validator::make($data, [
+            'user_id' => 'required|exists:users,id',
+            'amount' => 'required|numeric',
+            'book_spot_id' => 'required|numeric',
+            'booked_by_user_id' => 'required|numeric',
+            'tenant_id' => 'required|numeric',
+        ]);
 
-                    if ($validator->fails()) {
-                        return $data = [
-                            'error' => $validator->errors()
-                        ];
-                    }
+        if ($validator->fails()) {
+            return ['error' => $validator->errors()];
+        }
 
-                
-                    $validated = $validator->validated();
-                    $validated['invoice_ref'] = invoiceModel::generateInvoiceRef();
+        $validated = $validator->validated();
+        $validated['invoice_ref'] = InvoiceModel::generateInvoiceRef();
+        $validated['status'] = 'pending';
 
-                    $validated['status'] = 'pending';
-                    $invoice = InvoiceModel::create($validated);
+        $invoice = InvoiceModel::create($validated);
 
+        if (!$invoice) {
+            return ['error' => 'Invoice creation failed'];
+        }
 
-                    if (!$invoice) {
-                        return [
-                            'error' => 'Invoice creation failed'
-                        ];
-                    }
-                return [
-                'message' => 'Invoice created successfully',
-                'invoice_ref' => $invoice->invoice_ref,
-                'invoice' => $invoice,
-                'success' => true
-            ];
-
+        return [
+            'message' => 'Invoice created successfully',
+            'invoice_ref' => $invoice->invoice_ref,
+            'invoice' => $invoice,
+            'success' => true,
+        ];
     }
 
-    // READ (all invoices)
+    // READ ALL
     public function index($slug)
-{
-    $tenant = Tenant::where('slug', $slug)->first();
+    {
+        $tenant = Tenant::where('slug', $slug)->first();
 
-    if (!$tenant) {
-        return response()->json(['message' => 'Tenant not found'], 404);
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
+
+        $invoices = InvoiceModel::with([
+                'bookSpot:id,id,user_id,start_time,invoice_ref,fee',
+                'user:id,id,first_name,last_name',
+                'spacePaymentModel:invoice_ref,amount,payment_status,created_at'
+            ])
+            ->where('tenant_id', $tenant->id)
+            ->whereNotNull('invoice_ref')
+            ->select('id', 'book_spot_id', 'user_id', 'invoice_ref', 'tenant_id')
+            ->get();
+
+        if ($invoices->isEmpty()) {
+            return response()->json(['message' => 'No invoices found'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'invoices' => $invoices,
+        ]);
     }
 
-    $invoices = InvoiceModel::with([
-        'bookSpot:id,id,user_id,start_time,invoice_ref,fee', // select only necessary fields
-        'user:id,id,first_name,last_name', // select only necessary fields
-        'spacePayment:invoice_ref,amount,payment_status,created_at', // select only necessary fields
-    ])
-    ->where('tenant_id', $tenant->id)
-    ->whereNotNull('invoice_ref')
-    ->select('id', 'book_spot_id', 'user_id', 'invoice_ref', 'tenant_id') // adjust based on your invoice fields
-    ->get();
-
-    if ($invoices->isEmpty()) {
-        return response()->json(['message' => 'No invoices found'], 404);
-    }
-
-    return response()->json([
-        'success' => true,
-        'invoices' => $invoices,
-    ], 200);
-}
-
-     public function show(Request $request, $slug, $id)
+    // READ SINGLE
+    public function show(Request $request, $slug, $id)
     {
         $tenant = Tenant::where('slug', $slug)->first();
 
@@ -91,7 +87,8 @@ class InvoiceController extends Controller
         $invoice = InvoiceModel::with([
                 'bookSpot:id,id,user_id,start_time,invoice_ref,fee,chosen_days,expiry_day',
                 'user:id,id,first_name,last_name'
-            ])->find($id);
+            ])
+            ->find($id);
 
         if (!$invoice) {
             return response()->json(['error' => 'Invoice not found'], 404);
@@ -108,7 +105,7 @@ class InvoiceController extends Controller
     }
 
     // UPDATE
-    public function update($id, $data)
+    public function update($id, array $data)
     {
         $invoice = InvoiceModel::find($id);
 
@@ -116,7 +113,7 @@ class InvoiceController extends Controller
             return response()->json(['error' => 'Invoice not found'], 404);
         }
 
-        $validator = Validator::make((array)$data, [
+        $validator = Validator::make($data, [
             'user_id' => 'sometimes|required|exists:users,id',
             'invoice_ref' => 'sometimes|required|exists:book_spots,invoice_ref',
             'amount' => 'sometimes|required|numeric',
@@ -128,13 +125,11 @@ class InvoiceController extends Controller
             return response()->json(['error' => $validator->errors()], 422);
         }
 
-        $validated = $validator->validated();
-
-        $invoice->update($validated);
+        $invoice->update($validator->validated());
 
         return response()->json([
             'message' => 'Invoice updated successfully',
-            'invoice' => $invoice
+            'invoice' => $invoice,
         ]);
     }
 
@@ -149,43 +144,59 @@ class InvoiceController extends Controller
 
         $invoice->delete();
 
-        return response()->json([
-            'message' => 'Invoice deleted successfully'
-        ]);
+        return response()->json(['message' => 'Invoice deleted successfully']);
     }
-   
-     private function getTenantId($user_id)
+
+    // CLOSE INVOICE
+    public function closeInvoice(Request $request)
     {
-        $user = User::find($user_id);
-        if (!$user) {
-            return null;
+        $validator = Validator::make($request->all(), [
+            'invoice_ref' => 'required|exists:space_payment_models,invoice_ref',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 422);
         }
 
-        return $user->tenant_id;
+        $ref = $request->invoice_ref;
+
+        $payment = SpacePaymentModel::where('invoice_ref', $ref)->first();
+
+        if (!$payment) {
+            return response()->json(['error' => 'Payment not found for given invoice_ref'], 404);
+        }
+
+        $payment->update(['payment_status' => 'completed']);
+
+        return response()->json([
+            'message' => 'Invoice closed successfully',
+        ], 200);
     }
+
+    // Schedule generator
     private function generateSchedule(array $chosenDays, Carbon $expiryDate): array
-{
-    $schedule = [];
+    {
+        $schedule = [];
 
-    foreach ($chosenDays as $day) {
-        $weekday = strtolower($day['day']);
-        $startTime = Carbon::parse($day['start_time'])->format('H:i:s');
-        $endTime = Carbon::parse($day['end_time'])->format('H:i:s');
-        $current = Carbon::parse($day['start_time'])->copy();
+        foreach ($chosenDays as $day) {
+            $weekday = strtolower($day['day']);
+            $startTime = Carbon::parse($day['start_time'])->format('H:i:s');
+            $endTime = Carbon::parse($day['end_time'])->format('H:i:s');
+            $current = Carbon::parse($day['start_time'])->copy();
 
-        while ($current->lte($expiryDate)) {
-            $schedule[] = [
-                'day' => $weekday,
-                'date' => $current->toDateString(),
-                'start_time' => $current->format('Y-m-d H:i:s'),
-                'end_time' => $current->copy()->setTimeFromTimeString($endTime)->format('Y-m-d H:i:s'),
-            ];
+            while ($current->lte($expiryDate)) {
+                $schedule[] = [
+                    'day' => $weekday,
+                    'date' => $current->toDateString(),
+                    'start_time' => $current->format('Y-m-d H:i:s'),
+                    'end_time' => $current->copy()->setTimeFromTimeString($endTime)->format('Y-m-d H:i:s'),
+                ];
 
-            $current->addWeek();
+                $current->addWeek();
+            }
         }
-    }
 
-    usort($schedule, fn($a, $b) => strtotime($a['start_time']) <=> strtotime($b['start_time']));
-    return $schedule;
-}
+        usort($schedule, fn ($a, $b) => strtotime($a['start_time']) <=> strtotime($b['start_time']));
+        return $schedule;
+    }
 }

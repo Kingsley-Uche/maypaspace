@@ -188,6 +188,7 @@ Route::get('/invoice/show/{id}', [InvoiceController::class, 'show']);
 Route::post('/invoice/create', [InvoiceController::class, 'create']);
 Route::post('/invoice/update/{id}', [InvoiceController::class, 'update']);
 Route::post('/invoice/delete', [InvoiceController::class, 'destroy']);
+Route::post('/invoice/close', [InvoiceController::class, 'CloseInvoice']);
 // CRUD for prepaid user
 Route::post('/user/initiate/pay', [UserPrepaidController::class, 'initiatePay']);
 Route::post('/user/confirm/pay', [UserPrepaidController::class, 'confirmPayment']);
