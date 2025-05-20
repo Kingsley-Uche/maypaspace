@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use App\Models\TaxModel;
@@ -107,7 +108,7 @@ class UserPrepaidController extends Controller
             $userController = new UserContrl();
             $user =auth::user();
             // Initialize Paystack payment
-            $paymentData = $this->initializePaystackPayment($user->email, $amount, $slug);
+            $paymentData = $this->initializePaystackPayment($user->email, ceil($amount), $slug);
             if (!$paymentData || !isset($paymentData['data']['authorization_url'], $paymentData['data']['reference'])) {
                 throw new Exception('Failed to initialize payment');
             }
@@ -158,6 +159,7 @@ class UserPrepaidController extends Controller
      */
     public function confirmPayment(Request $request, $slug)
     {
+           $user = $request->user();
         DB::beginTransaction();
         try {
             // Validate input
@@ -213,10 +215,10 @@ class UserPrepaidController extends Controller
             // Prevent duplicate reservations for the same user/time/spot
             foreach ($chosenDays as $day) {
                 $exists = ReservedSpots::where([
-                    'user_id' => $validated['user_id'],
+                    'user_id' => $user->id,
                     'spot_id' => $validated['spot_id'],
                     'day' => $day['day'],
-                    'start_time' => $day['start U_time'],
+                    'start_time' => $day['start_time'],
                     'end_time' => $day['end_time'],
                 ])->exists();
 
@@ -230,8 +232,8 @@ class UserPrepaidController extends Controller
             // Create booking
             $bookSpot = BookSpot::create([
                 'spot_id' => $validated['spot_id'],
-                'user_id' => $validated['user_id'],
-                'booked_by_user' => $validated['user_id'],
+                'user_id' => $user->id,
+                'booked_by_user' => $user->id,
                 'type' => $validated['type'],
                 'chosen_days' => json_encode($chosenDays->toArray()),
                 'fee' => $paymentInfo['amount'] / 100,
@@ -244,9 +246,9 @@ class UserPrepaidController extends Controller
             ]);
 
             // Create reserved spots
-            $reservedSpotsData = $chosenDays->map(function ($day) use ($validated, $expiryDay, $bookSpot) {
+            $reservedSpotsData = $chosenDays->map(function ($day) use ($validated, $expiryDay, $bookSpot, $user) {
                 return [
-                    'user_id' => $validated['user_id'],
+                    'user_id' => $user->id,
                     'spot_id' => $validated['spot_id'],
                     'day' => $day['day'],
                     'start_time' => $day['start_time'],
@@ -315,12 +317,6 @@ class UserPrepaidController extends Controller
         return Validator::make($request->all(), [
             'spot_id' => 'required|numeric|exists:spots,id',
             'reference' => 'required|string|max:800',
-            'phone' => [
-                'required',
-                Rule::exists('users', 'phone')->where('id', $request->user_id),
-                'regex:/^([0-9\s\-\+\(\)]*)$/',
-                'max:20'
-            ],
             'type' => 'required|in:one-off,recurrent',
             'number_weeks' => 'nullable|numeric|min:0|max:3',
             'number_months' => 'nullable|numeric|min:0|max:12',
