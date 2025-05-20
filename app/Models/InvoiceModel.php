@@ -43,4 +43,9 @@ public function user()
     return $this->belongsTo(User::class, 'user_id');    
 
 }
+public function spacePayment()
+{
+    return $this->hasMany(SpacePaymentModel::class, 'invoice_ref', 'invoice_ref');
+}
+
 }

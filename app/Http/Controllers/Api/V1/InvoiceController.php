@@ -62,7 +62,8 @@ class InvoiceController extends Controller
 
     $invoices = InvoiceModel::with([
         'bookSpot:id,id,user_id,start_time,invoice_ref,fee', // select only necessary fields
-        'user:id,id,first_name,last_name' // select only necessary fields
+        'user:id,id,first_name,last_name', // select only necessary fields
+        'spacePayment:invoice_ref,amount,payment_status,created_at', // select only necessary fields
     ])
     ->where('tenant_id', $tenant->id)
     ->whereNotNull('invoice_ref')
