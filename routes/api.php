@@ -180,7 +180,7 @@ Route::get('/banks', [BankController::class, 'index']);
 Route::get('/banks/{id}', [BankController::class, 'show']);
 Route::post('/bank/create', [BankController::class, 'store']);
 Route::post('/banks/update/{id}', [BankController::class, 'update']);
-Route::post('/banks/delete', [BankController::class, 'destroy']);
+Route::post('/bank/delete', [BankController::class, 'destroy']);
 
 //crud for invoice
 Route::get('/invoices/all', [InvoiceController::class, 'index']);
