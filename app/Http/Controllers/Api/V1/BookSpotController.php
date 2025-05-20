@@ -623,6 +623,8 @@ public function update(Request $request, $slug)
             });
         });
 
+        $invoiceCont =new InvoiceController();
+        $invoiceCont-> cancelInvoice($booking->id);
         return response()->json(['message' => 'Booking successfully canceled'], 200);
     }
 

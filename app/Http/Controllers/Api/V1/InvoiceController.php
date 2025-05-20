@@ -199,4 +199,15 @@ class InvoiceController extends Controller
         usort($schedule, fn ($a, $b) => strtotime($a['start_time']) <=> strtotime($b['start_time']));
         return $schedule;
     }
+    public function cancelInvoice($book_spot_id)
+    {
+        $data = InvoiceModel::where('book_spot_id', $book_spot_id)->first();
+
+        if (!$data) {
+            return response()->json(['error' => 'Invoice not found'], 404);
+        }
+        $data->update(['status' => 'cancelled']);
+
+        return response()->json(['message' => 'Invoice cancelled successfully']);
+    }
 }
