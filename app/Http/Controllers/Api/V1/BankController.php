@@ -43,12 +43,23 @@ $data['tenant_id'] = $tenant->id; // Set the tenant ID from the tenant object
     }
 
  } // READ ALL
-    public function index()
+    public function index(Request $request)
     {
+        $user = $request->user();
+        $tenant = $this->checkTenant($request->tenant_slug, $user);
+
+        if (!$tenant) {
+            return response()->json(['error' => 'Tenant not found.'], 404);
+        }
+
+        // Fetch all bank accounts for the tenant
+        $accounts = BankModel::where('tenant_id', $tenant->id)->get();
+
         return response()->json([
-            'data' => BankAccount::all()
+            'data' => $accounts
         ]);
     }
+   
 
     // READ ONE
     public function show($id)
