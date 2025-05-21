@@ -36,6 +36,11 @@ class BankController extends Controller
 
         $data = $validator->validated();
         $data['tenant_id'] = $tenant->id;
+        $bankAccountCheck = BankModel::where('tenant_id', $tenant->id)->where('location_id', strip_tags($data['location_id']))
+            ->first();
+            if($bankAccountCheck){
+             return response()->json(['message' => 'You already have a bank account for this location, kindly delete or modify if needed.'], 422);
+            }
 
         $account = BankModel::create($data);
 
@@ -124,7 +129,7 @@ class BankController extends Controller
     {
         
         $validator = Validator::make($request->all(), [
-            'id' => 'required|numeric|exists:bank_accounts,id',
+            'id' => 'required|numeric|exists:bank_models,id',
         ]);
 
         if ($validator->fails()) {

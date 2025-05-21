@@ -22,7 +22,7 @@ class DiscountController extends Controller
             ->first();
 
         //The ability to create a discount is reserved for admins that have the ability to create users
-        if (!$userType || ($user->user_type_id !== 1 && $userType->user_type->create_user !== 'yes')) {
+        if (!$userType || ($user->user_type_id != 1 && $userType->user_type->create_user !== 'yes')) {
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
