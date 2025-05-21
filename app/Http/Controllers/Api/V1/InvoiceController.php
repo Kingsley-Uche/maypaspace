@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\InvoiceModel;
 use App\Models\User;
 use App\Models\Tenant;
-use App\Models\SpacePaymentModel;
+use App\Models\SpacePayment;
 use Carbon\Carbon;
 
 class InvoiceController extends Controller
@@ -58,7 +58,7 @@ class InvoiceController extends Controller
         $invoices = InvoiceModel::with([
                 'bookSpot:id,id,user_id,start_time,invoice_ref,fee',
                 'user:id,id,first_name,last_name',
-                'spacePaymentModel:invoice_ref,amount,payment_status,created_at'
+                'spacePayment:invoice_ref,amount,payment_status,created_at'
             ])
             ->where('tenant_id', $tenant->id)
             ->whereNotNull('invoice_ref')
