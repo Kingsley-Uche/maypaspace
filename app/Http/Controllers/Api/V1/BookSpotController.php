@@ -31,6 +31,7 @@ public function create(Request $request, $slug)
     try {
         $validated = $this->validateBookingRequest($request);
         $loggedUser = Auth::user();
+        
 
         // Early validation
         if ($validated['type'] === 'one-off' && ($validated['number_weeks'] || $validated['number_months'])) {
@@ -41,13 +42,29 @@ public function create(Request $request, $slug)
             return response()->json(['message' => 'Recurrent booking must have weeks or months specified'], 422);
         }
 
+        $tenant = $this->confirmSpot($validated['spot_id']);
+
+if (!$tenant) {
+    return response()->json(['message' => 'Spot not available for this workspace'], 422);
+}
+
+// proceed with $tenant if needed...
+
         $tenant = $this->getTenantFromSpot($validated['spot_id']);
     
-        if (!$tenant) {
-            return response()->json(['message' => 'Spot not found'], 404);
+    
+        if (!$tenant||!$tenant->tenant->space) {
+            return response()->json(['message' => 'Spot not found for this space'], 404);
         }
+        
 
         $tenantData = Tenant::with('bankAccounts')->where('slug', $slug)->first();
+        $bank = $tenantData->bankAccounts->where('location_id', $tenant->location_id)->first();
+        if(!$bank){
+             return response()->json(['message' => 'Kindly set up bank details for this location'], 404);
+            
+        }
+        
         $invoiceUser = User::select('first_name', 'last_name', 'email')->find($validated['user_id']);
 
         $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
@@ -67,8 +84,10 @@ public function create(Request $request, $slug)
         }
 
         if ($this->hasConflicts($validated['spot_id'], $chosenDays)) {
+        
             return response()->json(['message' => 'Spot already reserved for selected time'], 409);
         }
+        
         // Prevent duplicate reservations for the same user/time/spot
         foreach ($chosenDays as $day) {
             $exists = ReservedSpots::where([
@@ -92,7 +111,14 @@ public function create(Request $request, $slug)
 
         // Calculate fees
         $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
-        $amount = $this->calculateBookingAmount($validated, $tenant, $totalDuration);
+        $spot_data = Spot::where('spots.id', $validated['spot_id'])
+    ->join('spaces', 'spaces.id', '=', 'spots.space_id')->join('categories', 'spaces.space_category_id', 'categories.id')
+    ->select('spots.*', 'spaces.space_name as space_name', 'spaces.space_category_id', 'spaces.space_fee', 'spaces.min_space_discount_time', 
+    'spaces.space_discount', 'categories.id as space_category_id', 'categories.booking_type as booking_type', 'categories.min_duration as category_min_duration') // adjust as needed
+    ->first(); 
+
+        
+        $amount = $this->calculateBookingAmount($validated, $spot_data, $totalDuration);
 
         // Apply Taxes
         $tax_data = [];
@@ -127,19 +153,21 @@ public function create(Request $request, $slug)
             'fee' => $amount,
         ]);
 
-        foreach ($chosenDays as $day) {
-            ReservedSpots::create([
-                'user_id' => $validated['user_id'],
-                'spot_id' => $validated['spot_id'],
-                'day' => $day['day'],
-                'start_time' => $day['start_time'],
-                'end_time' => $day['end_time'],
-                'expiry_day' => $expiryDay,
-                'booked_spot_id' => $bookSpot->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
+        
+        $reservedSpotsData = collect($chosenDays)->map(function ($day) use ($validated, $bookSpot, $expiryDay) {
+    return [
+        'user_id' => $validated['user_id'],
+        'spot_id' => $validated['spot_id'],
+        'day' => $day['day'],
+        'start_time' => $day['start_time'],
+        'end_time' => $day['end_time'],
+        'expiry_day' => $expiryDay,
+        'booked_spot_id' => $bookSpot->id,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ];
+})->toArray();
+ReservedSpots::insert($reservedSpotsData);
 
         SpacePaymentModel::updateOrCreate([
             'user_id' => $validated['user_id'],
@@ -175,10 +203,10 @@ public function create(Request $request, $slug)
 
         $invoiceData = [
             'user_id' => $validated['user_id'],
-            'space_price' => $tenant->space->space_fee,
+            'space_price' => $tenant->space_fee,
             'total_price' => $amount,
-            'space_category' => $tenant->space->category->category,
-            'space' => $tenant->space->space_name,
+            'space_category' => $tenant->space_category,
+            'space' => $tenant->space_name,
             'booked_by_user' => "{$loggedUser->first_name} {$loggedUser->last_name}",
             'user_invoice' => "{$invoiceUser->first_name} {$invoiceUser->last_name}",
             'tenant_name' => $tenantData->company_name,
@@ -257,9 +285,9 @@ private function validateBookingRequest(Request $request)
 
 private function getTenantFromSpot($spotId)
 {
-    return Cache::remember("tenant_spot_{$spotId}", now()->addHour(), function () use ($spotId) {
+
         return Spot::with(['space.category'])->find($spotId);
-    });
+    
 }
 private function normalizeChosenDays(array $days)
 {
@@ -324,34 +352,50 @@ private function areChosenTimesValid($chosenDays, $availability)
 
 private function hasConflicts($spotId, $chosenDays)
 {
-   // dd(Carbon::parse(now()));
+    $conflictDetails = collect();
 
-   // return 
-   $bookings = BookSpot::where('spot_id', $spotId)
-   ->where('expiry_day', '>=', Carbon::now())
-   ->get();
+    $bookings = BookSpot::where('spot_id', $spotId)
+        ->where('expiry_day', '>=', now())
+        ->get();
 
-$conflict = false;
+    if ($bookings->isEmpty()) {
+        return false;
+    }
 
-foreach ($bookings as $booking) {
-   $chosen = json_decode($booking->chosen_days, true);
-   foreach ($chosen as $slot) {
-       foreach ($chosenDays as $inputDay) {
-           if (
-               strtolower($slot['day']) === strtolower($inputDay['day']) &&
-               $slot['start_time'] < $inputDay['end_time'] &&
-               $slot['end_time'] > $inputDay['start_time']
-           ) {
-               $conflict = true;
-               break 3;
-           }
-       }
-   }
+    foreach ($bookings as $booking) {
+        $bookedSlots = collect(json_decode($booking->chosen_days, true) ?? []);
+
+        foreach ($chosenDays as $inputDay) {
+            $inputDayName = strtolower($inputDay['day']);
+            $inputStart = Carbon::parse($inputDay['start_time'])->timezone('Africa/Lagos');
+            $inputEnd = Carbon::parse($inputDay['end_time'])->timezone('Africa/Lagos');
+
+            foreach ($bookedSlots as $slot) {
+                $bookedDay = strtolower($slot['day']);
+                $bookedStart = Carbon::parse($slot['start_time'])->timezone('Africa/Lagos');
+                $bookedEnd = Carbon::parse($slot['end_time'])->timezone('Africa/Lagos');
+
+                if (
+                    $inputDayName === $bookedDay &&
+                    $bookedStart < $inputEnd &&
+                    $bookedEnd > $inputStart
+                ) {
+                    $conflictDetails->push([
+                        'day' => ucfirst($inputDayName),
+                        'chosen_time' => "{$inputStart->format('H:i')} - {$inputEnd->format('H:i')}",
+                        'booked_time' => "{$bookedStart->format('H:i')} - {$bookedEnd->format('H:i')}",
+                    ]);
+                }
+            }
+        }
+    }
+
+   
+
+    return $conflictDetails->isNotEmpty() ? $conflictDetails : false;
 }
 
-return $conflict;
 
-}
 private function handleConflictResponse($spotId, $chosenDays)
 {
     $chosenDays = collect($chosenDays)->map(function ($day) {
@@ -438,39 +482,41 @@ private function isInvalidRecurrentBooking($validated, $tenant)
 
 private function calculateBookingAmount($validated, $tenant, $totalDuration)
 {
+
     $number_weeks =$validated['number_weeks'] ?? 1;
     $number_months = $validated['number_months'] ?? 1;
     $number_days = $validated['number_days'] ?? 1; // in case you're using daily bookings
 
     $discount = ($tenant->space_discount > 0) ? $tenant->space_discount : null;
+    
     $total = 0;
    
-    switch ($tenant->space->category->booking_type) {
+    switch ($tenant->booking_type) {
         case 'monthly':
-            $total =$tenant->space->space_fee  * $number_months;
+            $total =$tenant->space_fee  * $number_months>0?:1;
             if ($discount && $tenant->min_space_discount_time <= $number_months) {
                 $total -= ($total * ($discount / 100));
             }
             break;
 
         case 'weekly':
-            $total = $tenant->space->space_fee  * $number_weeks;
+            $total = $tenant->space_fee  * $number_weeks>0 ?:1;
             if ($discount && $tenant->min_space_discount_time <= $number_weeks) {
                 $total -= ($total * ($discount / 100));
             }
             break;
 
         case 'hourly':
-           // dd('hii');
-            $total = $tenant->space->space_fee * $totalDuration * $number_weeks;
-            
+           
+           $total = $tenant->space_fee * $totalDuration *( $number_weeks > 0 ?: 1);
+
             if ($discount && $tenant->min_space_discount_time <= $totalDuration) {
                 $total -= ($total * ($discount / 100));
             }
             break;
 
         case 'daily':
-            $total =$tenant->space->space_fee  * $number_days;
+            $total =$tenant->space_fee  * $number_days;
             if ($discount && $tenant->min_space_discount_time <= $number_days) {
                 $total -= ($total * ($discount / 100));
             }
@@ -479,6 +525,8 @@ private function calculateBookingAmount($validated, $tenant, $totalDuration)
         default:
             $total = 0;
     }
+    
+
     return $total;
 }
 
@@ -522,6 +570,7 @@ public function update(Request $request, $slug)
 
         // Check for conflicts, excluding the current booking
         if ($this->hasConflicts($validated['spot_id'], $chosenDays, $booking->id)) {
+        
             return $this->handleConflictResponse($validated['spot_id'], $chosenDays);
         }
 
@@ -972,5 +1021,12 @@ private function isExpired($book_spot_id)
         ->where('expiry_day', '<', now('Africa/Lagos'))
         ->exists();
 }
+private function confirmSpot($spotId)
+{
+    $spot = Spot::with('tenant')->find($spotId);
+
+    return $spot ? $spot->tenant : null;
+}
+
 
 }
