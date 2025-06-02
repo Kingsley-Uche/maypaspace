@@ -84,10 +84,10 @@ class SystemAdminFunctionsController extends Controller
         $messageContent['slug'] = $tenant->slug;
 
         //create usertype client for this tenant
-        UserType::create(
-            ['tenant_id'=> $tenant->id,
-            'user_type'=>'client']
-        );
+        // UserType::create(
+        //     ['tenant_id'=> $tenant->id,
+        //     'user_type'=>'client']
+        // );
         // Send email verification link
         $response = $this->sendRegistrationEmail($messageContent);
 

@@ -53,4 +53,8 @@ class BookSpot extends Model
     {
         return $this->belongsTo(BookedRef::class, 'booked_ref_id');
     }
+
+    public function invoice(){
+        return $this->belongsTo(InvoiceModel::class, 'invoice_ref', 'invoice_ref');
+    }
 }

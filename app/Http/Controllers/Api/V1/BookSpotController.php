@@ -322,9 +322,7 @@ private function areChosenTimesValid($chosenDays, $availability)
 
 private function hasConflicts($spotId, $chosenDays)
 {
-   // dd(Carbon::parse(now()));
-
-   // return 
+   
    $bookings = BookSpot::where('spot_id', $spotId)
    ->where('expiry_day', '>=', Carbon::now())
    ->get();
