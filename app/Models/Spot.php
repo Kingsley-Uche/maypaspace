@@ -30,4 +30,9 @@ class Spot extends Model
     {
         return $this->hasMany(BookSpot::class, 'spot_id');
     }
+    public function Tenant(){
+         return $this->belongsTo(Tenant::class, 'tenant_id');
+    }
+        
+    
 }

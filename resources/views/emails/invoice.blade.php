@@ -105,36 +105,34 @@
             </tr>
         </thead>
         <tbody>
-             @if (!empty($chosenDays))
-                 @foreach ($chosenDays as $day)
-            <tr>
-                
-                <td>
-                   
-                        <strong>Days & Time:</strong><br>
-                        
+            @if (!empty($chosenDays))
+                @foreach ($chosenDays as $day)
+                    <tr>
+                        <td>
+                            <strong>Days & Time:</strong><br>
                             {{ ucfirst($day['day']) }} ({{ \Carbon\Carbon::parse($day['date'])->toFormattedDateString() }}):<br>
                             {{ \Carbon\Carbon::parse($day['start_time'])->format('g:i A') }} - 
-                            {{ \Carbon\Carbon::parse($day['end_time'])->format('g:i A') }}<br>
-                      
-                </td>
-                 
-                <td>
-                    Reserved Spot - <br>
-                    {{ $invoice['space_category'] }}
-                </td>
-                <td class="text-right">&#8358;{{ number_format($invoice['space_price'], 2) }}</td>
-            </tr>
- @endforeach
-                    @else
-                        N/A
-                    @endif
+                            {{ \Carbon\Carbon::parse($day['end_time'])->format('g:i A') }}
+                        </td>
+                        <td>
+                            Reserved Spot -<br>
+                            {{ $invoice['space_category'] ?? 'N/A' }}
+                        </td>
+                        <td class="text-right">&#8358;{{ number_format($invoice['space_price'], 2) }}</td>
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td colspan="3" class="text-center">N/A</td>
+                </tr>
+            @endif
+
             {{-- Taxes --}}
             @if (!empty($invoice['taxes']))
                 @foreach ($invoice['taxes'] as $tax)
                     <tr>
                         <td></td>
-                        <td>{{ $tax['tax_name'] }}</td>
+                        <td>{{ $tax['tax_name'] ?? 'Tax' }}</td>
                         <td class="text-right">&#8358;{{ number_format($tax['amount'], 2) }}</td>
                     </tr>
                 @endforeach
@@ -149,6 +147,21 @@
     </table>
 
     <div class="footer">
+        <p class="description">
+            <strong>Information:</strong> Kindly make payment to the information below to secure your reservation.
+        </p>
+        <p class="description">
+            <strong>Bank Name:</strong> {{ $invoice['bank_details']['bank_name'] ?? 'N/A' }}
+        </p>
+        <p class="description">
+            <strong>Account Name:</strong> {{ $invoice['bank_details']['account_name'] ?? 'N/A' }}
+        </p>
+        <p class="description">
+            <strong>Account Number:</strong> {{ $invoice['bank_details']['account_number'] ?? 'N/A' }}
+        </p>
+        <p class="description">
+            <strong>Note:</strong> This invoice is generated automatically. Please do not reply to this email.
+        </p>
         <p>Thank you for your patronage!</p>
     </div>
 </div>
