@@ -44,6 +44,7 @@ public function create(Request $request, $slug)
 
         $tenant = $this->confirmSpot($validated['spot_id']);
 
+
 if (!$tenant) {
     return response()->json(['message' => 'Spot not available for this workspace'], 422);
 }
@@ -52,8 +53,7 @@ if (!$tenant) {
 
         $tenant = $this->getTenantFromSpot($validated['spot_id']);
     
-    
-        if (!$tenant||!$tenant->tenant->space) {
+        if (!$tenant||!$tenant->space) {
             return response()->json(['message' => 'Spot not found for this space'], 404);
         }
         
@@ -151,6 +151,7 @@ if (!$tenant) {
             'expiry_day' => $expiryDay,
             'start_time' => $chosenDays->first()['start_time'],
             'fee' => $amount,
+            'tenant_id' => $tenant->tenant_id,
         ]);
 
         

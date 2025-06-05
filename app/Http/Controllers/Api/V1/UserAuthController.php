@@ -106,7 +106,7 @@ class UserAuthController extends Controller
                 // Send OTP via email
                 Mail::to($request->email)->send(new OtpMail($messageContent));
 
-                return response()->json(['message' => 'Please verify you own the account by providing OTP sent to your registered email'], 200);
+                return response()->json(['message' => 'Please verify you own the account by providing OTP sent to your registered email', 'status'=> 201], 201);
             }
                 
             return response()->json(['message' => 'Could not find user'], 404);

@@ -181,7 +181,7 @@ class SubscriptionController extends Controller
     public function deletePlan(Request $request){
         $admin = $request->user();
 
-        if($admin->role_id !== 1){
+        if($admin->role_id != 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\TenantScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -16,6 +17,7 @@ class BookSpot extends Model
         'end_time',
         'booked_by_user',
         'fee',
+        'tenant_id',
         'user_id',
         'spot_id',
         'booked_ref_id',
@@ -56,5 +58,10 @@ class BookSpot extends Model
 
     public function invoice(){
         return $this->belongsTo(InvoiceModel::class, 'invoice_ref', 'invoice_ref');
+    }
+
+    protected static function booted()
+    {
+        static::addGlobalScope(new TenantScope());
     }
 }

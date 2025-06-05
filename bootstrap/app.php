@@ -24,9 +24,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin' => \App\Http\Middleware\EnsureAdmin::class,
         ]);
 
+        // $middleware->alias([
+        //     'active.subscription' => \App\Http\Middleware\EnsureTenantHasActivePlan::class,
+        // ]);
+
         $middleware->alias([
             'settenant' => \App\Http\Middleware\SetTenantFromUrl::class,
         ]);
+
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

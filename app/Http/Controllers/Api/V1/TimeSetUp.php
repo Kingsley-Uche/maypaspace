@@ -56,7 +56,7 @@ class TimeSetUp extends Controller
 
         $permission = $userType[0]['user_type']['create_space'];
 
-        if($user->user_type_id !== 1 && $permission !== "yes"){
+        if($user->user_type_id != 1 && $permission !== "yes"){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
     
@@ -178,7 +178,7 @@ if ($status) {
 
         $permission = $userType[0]['user_type']['create_space'];
 
-        if($user->user_type_id !== 1 && $permission !== "yes"){
+        if($user->user_type_id != 1 && $permission !== "yes"){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
     

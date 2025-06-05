@@ -36,7 +36,7 @@ class TaxController extends Controller
             ->with(['user_type:id,create_space'])
             ->first();
 
-        if (!$userType || ($user->user_type_id !== 1 && $userType->user_type->create_space !== 'yes')) {
+        if (!$userType || ($user->user_type_id != 1 && $userType->user_type->create_space !== 'yes')) {
             return response()->json(['message' => 'You are not authorized'], 403);
         }
         $validated['tenant_id'] = $tenant->id;
@@ -62,7 +62,7 @@ class TaxController extends Controller
             ->with(['user_type:id,create_space'])
             ->first();
 
-        if (!$userType || ($user->user_type_id !== 1 && $userType->user_type->create_space !== 'yes')) {
+        if (!$userType || ($user->user_type_id != 1 && $userType->user_type->create_space !== 'yes')) {
             return response()->json(['message' => 'You are not authorized'], 403);
         }
     

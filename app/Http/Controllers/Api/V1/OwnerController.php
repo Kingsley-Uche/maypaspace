@@ -18,7 +18,7 @@ class OwnerController extends Controller
     public function addSystemAdmin(Request $request){
         $systemAdmin = $request->user();
 
-        if($systemAdmin->role_id !== 1){
+        if($systemAdmin->role_id != 1){
             return response()->json(['message'=> 'You are not authorized'], 401);
         }
 
@@ -65,7 +65,7 @@ class OwnerController extends Controller
     public function deleteSystemAdmin(Request $request){
         $admin = $request->user();
 
-        if($admin->role_id !== 1){
+        if($admin->role_id != 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -104,7 +104,7 @@ class OwnerController extends Controller
     public function updateSystemAdmin(Request $request, $id){
         $admin = $request->user();
 
-        if($admin->role_id !== 1){
+        if($admin->role_id != 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -137,7 +137,7 @@ class OwnerController extends Controller
     public function createRole(Request $request){
         $admin = $request->user();
 
-        if($admin->role_id !== 1){
+        if($admin->role_id != 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -177,7 +177,7 @@ class OwnerController extends Controller
     public function updateRole(Request $request, $id){
         $admin = $request->user();
 
-        if($admin->role_id !== 1){
+        if($admin->role_id != 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -216,7 +216,7 @@ class OwnerController extends Controller
     public function destroyRole(Request $request){
         $admin = $request->user();
 
-        if($admin->role_id !== 1){
+        if($admin->role_id != 1){
             return response()->json(['message'=> 'You are not authorized to do this'], 403);
         }
 
@@ -251,7 +251,7 @@ class OwnerController extends Controller
     }
 
     public function viewRole($id){
-        if($id === 1){
+        if($id == 1){
             return response()->json(['message'=> 'This role does not exist'], 403);  
         }
         $role = Role::where('id', $id)->get();

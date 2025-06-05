@@ -8,10 +8,16 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\BookSpot;
+use App\Models\Tenant;
 
 class AnalyticsController extends Controller
 {
-    public function index(Request $request){
+    public function index(Request $request, $tenant_slug){
+
+        $user = $request->user();
+
+        $tenant = $this->checkTenant($tenant_slug, $user);
+
         $startTimeA = $request->query('startTimeA');
         $endTimeA = $request->query('endTimeA');
 
@@ -31,22 +37,22 @@ class AnalyticsController extends Controller
         $filterEndDateB = Carbon::parse($endTimeB);
 
         if($spotId && !$days){
-           $resultsA = $this->fetchFilterDataWithSpot($filterStartDateA, $filterEndDateA, $categoryId, $spotId);
+           $resultsA = $this->fetchFilterDataWithSpot($filterStartDateA, $filterEndDateA, $categoryId, $spotId, $tenant->id);
 
-           $resultsB = $this->fetchFilterDataWithSpot($filterStartDateB, $filterEndDateB, $categoryId, $spotId); 
+           $resultsB = $this->fetchFilterDataWithSpot($filterStartDateB, $filterEndDateB, $categoryId, $spotId, $tenant->id); 
         }elseif($spotId && $days){
-           $resultsA = $this->fetchFilterDataWithSpot($filterStartDateA, $filterEndDateA, $categoryId, $spotId);
+           $resultsA = $this->fetchFilterDataWithSpot($filterStartDateA, $filterEndDateA, $categoryId, $spotId, $tenant->id);
 
-           $resultsB = $this->fetchFilterDataWithSpot($filterStartDateB, $filterEndDateB, $categoryId, $spotId); 
+           $resultsB = $this->fetchFilterDataWithSpot($filterStartDateB, $filterEndDateB, $categoryId, $spotId, $tenant->id); 
         }elseif($days && !$spotId){
-            $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId);
+            $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId, $tenant->id);
 
-            $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId);
+            $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, $tenant->id);
         }
         else{
-           $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId);
+           $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId, $tenant->id);
 
-           $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId);
+           $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, $tenant->id);
         }
 
         $summedDataA = $this->loopResults($resultsA, $filterStartDateA, $filterEndDateA, $days);
@@ -79,9 +85,10 @@ class AnalyticsController extends Controller
 
     //Fetch filter data
 
-    private function fetchFilterData($filterStartDate, $filterEndDate, $categoryId){
+    private function fetchFilterData($filterStartDate, $filterEndDate, $categoryId, $tenant_id){
 
         $results = BookSpot::select('id', 'spot_id', 'booked_ref_id', 'type', 'chosen_days', 'start_time', 'expiry_day')
+        ->where('tenant_id', $tenant_id)
         ->whereHas('spot.space.category', function ($query) use ($categoryId) {
             $query->where('id', $categoryId);
         })
@@ -102,10 +109,11 @@ class AnalyticsController extends Controller
         return $results;
     }
 
-    private function fetchFilterDataWithSpot($filterStartDate, $filterEndDate, $categoryId, $spotId){
+    private function fetchFilterDataWithSpot($filterStartDate, $filterEndDate, $categoryId, $spotId, $tenant_id){
                 
         $results = BookSpot::select('id', 'spot_id', 'type', 'chosen_days', 'start_time', 'expiry_day')
         ->where('spot_id', $spotId)
+        ->where('tenant_id', $tenant_id)
         ->whereHas('spot.space.category', function ($query) use ($categoryId) {
             $query->where('id', $categoryId);
         })
@@ -275,7 +283,11 @@ class AnalyticsController extends Controller
     return $summedData;
 }
 
-    public function indexPayment(Request $request){
+    public function indexPayment(Request $request, $tenant_slug){
+        $user = $request->user();
+
+        $tenant = $this->checkTenant($tenant_slug, $user);
+
         $startTimeA = $request->query('startTimeA');
         $endTimeA = $request->query('endTimeA');
 
@@ -288,9 +300,9 @@ class AnalyticsController extends Controller
         $filterStartDateB = Carbon::parse($startTimeB);
         $filterEndDateB = Carbon::parse($endTimeB);
 
-        $resultsA = $this->fetchFilterPayment($filterStartDateA, $filterEndDateA);
+        $resultsA = $this->fetchFilterPayment($filterStartDateA, $filterEndDateA, $tenant->id);
 
-        $resultsB = $this->fetchFilterPayment($filterStartDateB, $filterEndDateB);
+        $resultsB = $this->fetchFilterPayment($filterStartDateB, $filterEndDateB, $tenant->id);
 
         $dataA = $this->fetchLoopPayment($resultsA, $filterStartDateA, $filterEndDateA);
 
@@ -319,9 +331,10 @@ class AnalyticsController extends Controller
     }
     //Sort Payments
 
-    private function fetchFilterPayment($filterStartDate, $filterEndDate){
+    private function fetchFilterPayment($filterStartDate, $filterEndDate, $tenant_id){
 
-        $results = BookSpot::where(function ($query) use ($filterStartDate, $filterEndDate) {
+        $results = BookSpot::where('tenant_id', $tenant_id)
+        ->where(function ($query) use ($filterStartDate, $filterEndDate) {
             $query->whereBetween('start_time', [$filterStartDate, $filterEndDate])
                 ->orWhereBetween('expiry_day', [$filterStartDate, $filterEndDate])
                 ->orWhere(function ($query) use ($filterStartDate, $filterEndDate) {
@@ -420,17 +433,28 @@ class AnalyticsController extends Controller
 
         $sumTotal = $numberA - $numberB;
 
-        $total = ($sumTotal / $numberB) * 100;
+        if($numberB == 0){
+            $total = $sumTotal * 100;
+        }else{
+            $total = ($sumTotal / $numberB) * 100;
+        }
 
         return $total;
     }
 
-    public function getAccountsAndRevenue(){
+    public function getAccountsAndRevenue(Request $request, $tenant_slug){
 
-        $filterStartDate = Carbon::parse('2025-05-01');
-        $filterEndDate = Carbon::parse('2025-08-20');
+        $startDate = $request->query('startTimeA');
+        $endDate = $request->query('endTimeA');
 
-        $results = BookSpot::select('id', 'type', 'user_id', 'chosen_days', 'expiry_day', 'start_time', 'fee', 'invoice_ref')->where(function ($query) use ($filterStartDate, $filterEndDate) {
+        $filterStartDate = Carbon::parse($startDate);
+        $filterEndDate = Carbon::parse($endDate);
+
+        $user = $request->user();
+
+        $tenant = $this->checkTenant($tenant_slug, $user);
+
+        $results = BookSpot::where('tenant_id', $tenant->id)->select('id', 'type', 'user_id', 'chosen_days', 'expiry_day', 'start_time', 'fee', 'invoice_ref')->where(function ($query) use ($filterStartDate, $filterEndDate) {
             $query->whereBetween('start_time', [$filterStartDate, $filterEndDate])
                 ->orWhereBetween('expiry_day', [$filterStartDate, $filterEndDate])
                 ->orWhere(function ($query) use ($filterStartDate, $filterEndDate) {
@@ -606,6 +630,26 @@ class AnalyticsController extends Controller
         }
 
         return response()->json($results);
+    }
+
+
+    private function checkTenant($tenant_slug, $user){
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
+
+        if($user->user_type_id != 1 && $user->user_type_id != 2){
+            return response()->json(['message' => 'You are not authorizeddd'], 403);
+        }
+
+        if($user->tenant_id !== $tenant->id){
+            return response()->json(['message' => 'You are not authorized'], 403);
+        }
+
+        return $tenant;
+
     }
 
 

@@ -26,6 +26,8 @@ class SystemAdminAuthController extends Controller
 
             $admin = Admin::where('email', $request->email)->first();
 
+            return response()->json(Hash::check($request->password, $admin->password));
+
             if (!$admin || !Hash::check($request->password, $admin->password)) {
                 return response()->json(['message' => 'Invalid credentials'], 401);
             }
