@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Invoice PDF</title>
+    <title>Receipt PDF</title>
     <style>
         body {
             font-family: DejaVu Sans, sans-serif;
@@ -73,26 +73,27 @@
 <body>
 
 @php
-    $book = $invoice['book_data'];
-    $chosenDays = $invoice['schedule'] ?? [];
+    $book = $receiptData['book_data'];
+
+    $chosenDays =$receiptData['schedule'] ?? [];
 @endphp
 
 <div class="invoice-box">
     <div class="header">
         <div class="company-info">
-            <h3>{{ $invoice['tenant_name'] ?? 'Company Name' }}</h3>
+            <h3>{{ $receiptData['tenant_name'] ?? 'Company Name' }}</h3>
             <p class="text-muted">Generated Invoice</p>
         </div>
         <div class="invoice-info text-right">
-            <p><strong>Invoice Ref:</strong> {{ $invoice['invoice_ref'] }}</p>
+            <p><strong>Invoice Ref:</strong> {{ $receiptData['invoice_ref'] }}</p>
             <p><strong>Date:</strong> {{ \Carbon\Carbon::parse($book->created_at)->toFormattedDateString() }}</p>
         </div>
     </div>
 
     <table class="invoice-details">
         <tr>
-            <td><strong>Billed To:</strong><br>{{ $invoice['user_invoice'] ?? 'N/A' }}</td>
-            <td class="text-right"><strong>Issued By:</strong><br>{{ $invoice['booked_by_user'] ?? 'System' }}</td>
+            <td><strong>Billed To:</strong><br>{{ $receiptData['user_invoice'] ?? 'N/A' }}</td>
+            <td class="text-right"><strong>Issued By:</strong><br>{{ $receiptData['tenant_name'] ?? 'System' }}</td>
         </tr>
     </table>
 
@@ -101,7 +102,7 @@
             <tr>
                 <th>Booked Days</th>
                 <th>Description</th>
-                <th class="text-right">Charged: ({{ ucwords($invoice['space_booking_type']) ?? 'N/A' }})</th>
+                <th class="text-right">Total </th>
             </tr>
         </thead>
         <tbody>
@@ -113,26 +114,24 @@
                             {{ ucfirst($day['day']) }} ({{ \Carbon\Carbon::parse($day['date'])->toFormattedDateString() }}):<br>
                             {{ \Carbon\Carbon::parse($day['start_time'])->format('g:i A') }} - 
                             {{ \Carbon\Carbon::parse($day['end_time'])->format('g:i A') }}
+
                             @php
-                            $duration = \Carbon\Carbon::parse($day['start_time'])->diffInHours(\Carbon\Carbon::parse($day['end_time']));
+                                $duration = \Carbon\Carbon::parse($day['start_time'])->diffInHours(\Carbon\Carbon::parse($day['end_time']));
                             @endphp
                             <br>
-                            <strong>Duration:</strong>
-                            @if( $duration> 1) {{ $duration }} hours
-                            @else
-                            {{$duration}} hour
-                            @endif
+                            <strong>Duration:</strong> {{ $duration }} {{ $duration > 1 ? 'hours' : 'hour' }}
                         </td>
                         <td>
                             Reserved Spot -<br>
-                            {{ $invoice['space_category'] ?? 'N/A' }}
+                            {{ $receiptData['space_category'] ?? 'N/A' }}
                         </td>
                         <td class="text-right">&#8358;
-                           @if($invoice['space_booking_type'] === 'hourly')
-                            {{ number_format($invoice['space_price'] * $duration, 2) }}
-                                @else
-                                    {{ number_format($invoice['space_price'], 2) }}
-                                @endif
+                            @if($receiptData['space_booking_type'] === 'hourly')
+                                {{ number_format($receiptData['space_price'] * $duration, 2) }}
+                                ({{ ucwords($receiptData['space_booking_type']) ?? 'N/A' }})
+                            @else
+                                {{ number_format($receiptData['space_price'], 2) }}
+                            @endif
                         </td>
                     </tr>
                 @endforeach
@@ -143,11 +142,10 @@
             @endif
 
             {{-- Taxes --}}
-            @if (!empty($invoice['taxes']))
-                @foreach ($invoice['taxes'] as $tax)
+            @if (!empty($receiptData['taxes']))
+                @foreach ($receiptData['taxes'] as $tax)
                     <tr>
-                        <td>Tax:</td>
-                        <td>{{ $tax['tax_name'] ?? 'Tax' }}</td>
+                        <td><td>                        <td> Tax: {{ $tax['tax_name'] ?? 'Tax' }}</td>
                         <td class="text-right">&#8358;{{ number_format($tax['amount'], 2) }}</td>
                     </tr>
                 @endforeach
@@ -156,27 +154,12 @@
         <tfoot>
             <tr>
                 <td colspan="2" class="total"><strong>Total:</strong></td>
-                <td class="text-right"><strong>&#8358;{{ number_format($invoice['total_price'], 2) }}</strong></td>
+                <td class="text-right"><strong>&#8358;{{ number_format($receiptData['total_price'], 2) }}</strong></td>
             </tr>
         </tfoot>
     </table>
 
     <div class="footer">
-        <p class="description">
-            <strong>Information:</strong> Kindly make payment to the information below to secure your reservation.
-        </p>
-        <p class="description">
-            <strong>Bank Name:</strong> {{ $invoice['bank_details']['bank_name'] ?? 'N/A' }}
-        </p>
-        <p class="description">
-            <strong>Account Name:</strong> {{ $invoice['bank_details']['account_name'] ?? 'N/A' }}
-        </p>
-        <p class="description">
-            <strong>Account Number:</strong> {{ $invoice['bank_details']['account_number'] ?? 'N/A' }}
-        </p>
-        <p class="description">
-            <strong>Note:</strong> This invoice is generated automatically. Please do not reply to this email.
-        </p>
         <p>Thank you for your patronage!</p>
     </div>
 </div>

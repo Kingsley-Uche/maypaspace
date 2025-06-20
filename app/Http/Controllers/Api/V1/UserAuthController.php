@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Db;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\Tenant;
 
@@ -76,14 +76,21 @@ class UserAuthController extends Controller
         return response()->json(['message' => 'Logged out successfully']);
     }
 
-    public function sendOtp(Request $request)
+    public function sendOtp(Request $request, $tenant_slug)
     {
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
+
         try {
             $request->validate([
-                'email' => 'required|string|email|exists:users,email',
+                'email' => 'required|string|email',
             ]);
 
-            $user = User::where('email', $request->email)->first();
+            //Check Email
+            $user = User::where('email', $request->email)->where('tenant_id', $tenant->id)->first();
 
             if ($user) {
                 // send OTP
@@ -94,6 +101,7 @@ class UserAuthController extends Controller
                     'email' => $request->email,
                     'otp' => $otp,
                     'expires_at' => now()->addMinutes(5),
+                    'tenant_id' => $tenant->id,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -120,15 +128,23 @@ class UserAuthController extends Controller
         
     }
 
-    public function verifyOtp(Request $request)
+    public function verifyOtp(Request $request, $tenant_slug)
     {
+        
         try{
             $request->validate([
-                'email' => 'required|string|email|unique:users,email',
+                'email' => 'required|string|email',
                 'otp' => 'required|numeric',
             ]);
 
-            $user = User::where('email', $request->email)->first();
+            $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+            if (!$tenant) {
+                return response()->json(['message' => 'Tenant not found'], 404);
+            }
+
+            //Check Email
+            $user = User::where('email', $request->email)->where('tenant_id', $tenant->id)->first();
 
             if (!$user) {
                 return response()->json(['message' => 'User not found'], 404);
@@ -137,6 +153,7 @@ class UserAuthController extends Controller
             $otpRecord = DB::table('otps')
             ->where('email', $request->email)
             ->where('otp', $request->otp)
+            ->where('tenant_id', $tenant->id)
             ->where('is_used', false)
             ->where('expires_at', '>=', now())
             ->first();
@@ -159,15 +176,22 @@ class UserAuthController extends Controller
         }
     }
 
-    public function resetPassword(Request $request){
+    public function resetPassword(Request $request, $tenant_slug){
         try{
+
+            $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+            if (!$tenant) {
+                return response()->json(['message' => 'Tenant not found'], 404);
+            }
+
             $request->validate([
-                'email' => 'required|email|exists:users,email',
+                'email' => 'required|email',
                 'otp' => 'required|numeric',
                 'password' => 'required|min:8|confirmed',
             ]);  
 
-            $user = User::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->where('tenant_id', $tenant->id)->first();
 
             if (!$user) {
                 return response()->json(['message' => 'User not found'], 404);
@@ -177,6 +201,7 @@ class UserAuthController extends Controller
             ->where('email', $request->email)
             ->where('otp', $request->otp)
             ->where('is_used', false)
+            ->where('tenant_id', $tenant->id)
             ->where('expires_at', '>=', now())
             ->first();
 

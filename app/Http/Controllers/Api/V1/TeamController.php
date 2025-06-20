@@ -45,12 +45,27 @@ class TeamController extends Controller
 
         //This is the Logic to handle the manager column in the Teams table. If you want to add a new user as manager of a new team, This will check if first name is provided in the input.
         if($request->has('first_name')){
+
+            //Check Email
+            $checkEmail = User::where('email', $request->email)->where('tenant_id', $tenant->id)->get();
+
+            if(!$checkEmail->isEmpty()){
+                return response()->json(['errors' => 'This Email has already been registered on this platform'], 422);
+            }
+
+            //Check Number
+            $checkPhone = User::where('phone', $request->phone)->where('tenant_id', $tenant->id)->get();
+
+            if(!$checkPhone->isEmpty()){
+                return response()->json(['errors' => 'This phone number has already been registered on this platform'], 422);
+            }
+
             $validator = Validator::make($request->all(), [
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
                 'user_type_id' => 'numeric|gte:1',
-                'email' => 'required|email|unique:users,email',
-                'phone' => 'required|unique:users,phone|regex:/^([0-9\s\-\+\(\)]*)$/',
+                'email' => 'required|email',
+                'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
             ]);  
             
             if($validator->fails()){

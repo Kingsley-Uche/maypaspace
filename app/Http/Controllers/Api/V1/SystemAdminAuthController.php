@@ -9,7 +9,7 @@ use App\Mail\OtpMail;
 use App\Mail\SystemPasswordMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Db;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Models\Admin;
 use App\Models\User;
@@ -25,8 +25,6 @@ class SystemAdminAuthController extends Controller
             ]);
 
             $admin = Admin::where('email', $request->email)->first();
-
-            return response()->json(Hash::check($request->password, $admin->password));
 
             if (!$admin || !Hash::check($request->password, $admin->password)) {
                 return response()->json(['message' => 'Invalid credentials'], 401);
