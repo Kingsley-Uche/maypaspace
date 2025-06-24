@@ -24,10 +24,12 @@ use App\Http\Controllers\Api\V1\{
     TaxController,
     BankController,
     InvoiceController,
-    UserPrepaidController
+    UserPrepaidController,
+    TenantLogoController,
 };
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureTenantHasActivePlan;
+use App\Models\TenantLogo;
 
 Route::prefix('system-admin')->group(function(){
     Route::post('/login', [SystemAdminAuthController::class, 'login']);
@@ -87,6 +89,9 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
     Route::get('/get/spaces', [BookSpotController::class,'getFreeSpots']);
     Route::post('/initiate/pay/spot', [PaymentController::class,'initiatePay']);
     Route::post('/confirm/pay/spot', [PaymentController::class,'confirmPayment']);
+
+    //view tenant details particularly logo and colour
+    Route::get('/view-details', [TenantLogoController::class,'index']);
 
     Route::middleware(['auth:sanctum', EnsureTenantHasActivePlan::class])->group(function () {
         Route::post('/settings/workspace/time/create', [TimeSetUp::class,'store']);
@@ -201,6 +206,10 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::get('/analytics/list', [AnalyticsController::class, 'index']);
         Route::get('/analytics/payment', [AnalyticsController::class, 'indexPayment']);
         Route::get('/analytics/accounts', [AnalyticsController::class, 'getAccountsAndRevenue']);
+
+         //set additional tenant details
+        Route::post('/add-details', [TenantLogoController::class,'create']);
+        Route::post('/update-details', [TenantLogoController::class,'update']);
     });
 
 
