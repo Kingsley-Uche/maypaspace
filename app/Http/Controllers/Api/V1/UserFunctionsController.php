@@ -24,13 +24,27 @@ class UserFunctionsController extends Controller
             return response()->json(['message' => 'Tenant not found'], 404);
         }
 
+        //Check Email
+        $checkEmail = User::where('email', $request->email)->where('tenant_id', $tenant->id)->get();
+
+        if(!$checkEmail->isEmpty()){
+            return response()->json(['errors' => 'This Email has already been registered on this platform'], 422);
+        }
+
+        //Check Number
+        $checkPhone = User::where('phone', $request->phone)->where('tenant_id', $tenant->id)->get();
+
+        if(!$checkPhone->isEmpty()){
+            return response()->json(['errors' => 'This phone number has already been registered on this platform'], 422);
+        }
+
          // Validate request data
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'user_type_id' => 'numeric|gte:1',
-            'email' => 'required|email|unique:users,email',
-            'phone' => 'required|unique:users,phone|regex:/^([0-9\s\-\+\(\)]*)$/',
+            'email' => 'required|email',
+            'phone' => 'required|regex:/^([0-9\s\-\+\(\)]*)$/',
         ]);
 
         if ($validator->fails()) {
@@ -341,6 +355,7 @@ class UserFunctionsController extends Controller
 
     }
     public function create_visitor_user($data,$tenant){
+        $data['user_type_id'] = 3;
         
         $user =$this->completeCreate($data, $tenant);
         return $user['user'];

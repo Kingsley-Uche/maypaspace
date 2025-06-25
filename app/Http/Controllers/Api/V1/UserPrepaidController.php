@@ -109,6 +109,7 @@ class UserPrepaidController extends Controller
             $user =auth::user();
             // Initialize Paystack payment
             $paymentData = $this->initializePaystackPayment($user->email, ceil($amount), $slug);
+         
             if (!$paymentData || !isset($paymentData['data']['authorization_url'], $paymentData['data']['reference'])) {
                 throw new Exception('Failed to initialize payment');
             }
@@ -531,62 +532,55 @@ class UserPrepaidController extends Controller
     }
 
     /**
-     * Calculate booking amount
-     */
-     private function calculateBookingAmount($validated, $tenant, $totalDuration)
-    {
-        
-        $numberWeeks = (int) ($validated['number_weeks']?? 1);
-        $numberMonths = (int) ($validated['number_months'] ?? 0);
-        $numberDays = count($validated['chosen_days']);
-        $discount = ($tenant->space_discount > 0) ? $tenant->space_discount : null;
-        $tenant->min_space_discount_time = ($tenant->min_space_discount_time > 0) ? $tenant->min_space_discount_time :null;
-        $total = 0;
-        if($numberWeeks===0){
-            $numberWeeks = 1;
-        }
-        if($numberMonths===0){
-            $numberMonths=1;
-            
-        }
-
-        switch ($tenant->space->category->booking_type) {
-            case 'monthly':
-                $total = $tenant->space->space_fee * ($numberMonths);
-                if ($discount && $tenant->min_space_discount_time && $tenant->min_space_discount_time <= $numberMonths) {
-                    $total -= ($total * ($discount / 100));
-                }
-                break;
-
-            case 'weekly':
-                $total = $tenant->space->space_fee * $numberWeeks;
-                if ($discount && $tenant->min_space_discount_time && $tenant->min_space_discount_time <= $numberWeeks) {
-                    $total -= ($total * ($discount / 100));
-                }
-                break;
-
-            case 'hourly':
-                
-                $total = $tenant->space->space_fee * $totalDuration * $numberWeeks;
-                if ($discount  && $tenant->min_space_discount_time && $tenant->min_space_discount_time <= $totalDuration) {
-                    $total -= ($total * ($discount / 100));
-                }
-                break;
-
-            case 'daily':
-                $total = $tenant->space->space_fee * $numberDays;
-                if ($discount && $tenant->min_space_discount_time && $tenant->min_space_discount_time <= $numberDays) {
-                    $total -= ($total * ($discount / 100));
-                } 
-                break;
-
-        }
-        
+     * Calculate booking amount*/
     
-        return $total;
+
+       private function calculateBookingAmount($validated, $tenant, $totalDuration)
+{
+    $numberWeeks = max((int) ($validated['number_weeks'] ?? 1), 1); // ensure at least 1
+    $numberMonths = max((int) ($validated['number_months'] ?? 0), 1);
+    $numberDays = count($validated['chosen_days'] ?? []);
+
+    $discount = $tenant->space_discount > 0 ? $tenant->space_discount : 0;
+    $spaceFee = $tenant->space->space_fee;
+    $bookingType = $tenant->space->category->booking_type;
+    $minDiscountTime = $tenant->min_space_discount_time;
+
+    $total = 0;
+    $units = 0;
+
+    switch ($bookingType) {
+        case 'monthly':
+            $units = $numberMonths;
+            $total = $spaceFee * $units;
+            break;
+
+        case 'weekly':
+            $units = $numberWeeks;
+            $total = $spaceFee * $units;
+            break;
+
+        case 'hourly':
+            $units = $totalDuration;
+            $total = $spaceFee * $units * $numberWeeks;
+            break;
+
+        case 'daily':
+            $units = $numberDays;
+            $total = $spaceFee * $units;
+            break;
+
+        default:
+            return 0;
     }
 
-    /**
+    if ($discount && $units >= $minDiscountTime) {
+        $total -= $total * ($discount / 100);
+    }
+    return $total;
+}
+ 
+/**
      * Initialize Paystack payment
      */
     private function initializePaystackPayment($email, $amount, $slug)

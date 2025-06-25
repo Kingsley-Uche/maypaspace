@@ -17,7 +17,10 @@ return new class extends Migration
         $table->string('otp');
         $table->timestamp('expires_at');
         $table->boolean('is_used')->default(false);
+        $table->unsignedBigInteger('tenant_id');
         $table->timestamps();
+
+        $table->foreign('tenant_id')->references('id')->on('tenants')->onDelete('cascade');
     });
 }
 

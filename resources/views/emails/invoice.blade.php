@@ -101,7 +101,7 @@
             <tr>
                 <th>Booked Days</th>
                 <th>Description</th>
-                <th class="text-right">Amount</th>
+                <th class="text-right">Charged: ({{ ucwords($invoice['space_booking_type']) ?? 'N/A' }})</th>
             </tr>
         </thead>
         <tbody>
@@ -113,12 +113,27 @@
                             {{ ucfirst($day['day']) }} ({{ \Carbon\Carbon::parse($day['date'])->toFormattedDateString() }}):<br>
                             {{ \Carbon\Carbon::parse($day['start_time'])->format('g:i A') }} - 
                             {{ \Carbon\Carbon::parse($day['end_time'])->format('g:i A') }}
+                            @php
+                            $duration = \Carbon\Carbon::parse($day['start_time'])->diffInHours(\Carbon\Carbon::parse($day['end_time']));
+                            @endphp
+                            <br>
+                            <strong>Duration:</strong>
+                            @if( $duration> 1) {{ $duration }} hours
+                            @else
+                            {{$duration}} hour
+                            @endif
                         </td>
                         <td>
                             Reserved Spot -<br>
                             {{ $invoice['space_category'] ?? 'N/A' }}
                         </td>
-                        <td class="text-right">&#8358;{{ number_format($invoice['space_price'], 2) }}</td>
+                        <td class="text-right">&#8358;
+                           @if($invoice['space_booking_type'] === 'hourly')
+                            {{ number_format($invoice['space_price'] * $duration, 2) }}
+                                @else
+                                    {{ number_format($invoice['space_price'], 2) }}
+                                @endif
+                        </td>
                     </tr>
                 @endforeach
             @else
@@ -131,7 +146,7 @@
             @if (!empty($invoice['taxes']))
                 @foreach ($invoice['taxes'] as $tax)
                     <tr>
-                        <td></td>
+                        <td>Tax:</td>
                         <td>{{ $tax['tax_name'] ?? 'Tax' }}</td>
                         <td class="text-right">&#8358;{{ number_format($tax['amount'], 2) }}</td>
                     </tr>

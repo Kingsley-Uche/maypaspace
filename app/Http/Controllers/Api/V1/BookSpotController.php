@@ -110,7 +110,10 @@ if (!$tenant) {
         }
 
         // Calculate fees
-        $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
+        $duration_data = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
+        $totalDuration = $duration_data['total_duration'];
+
+        
         $spot_data = Spot::where('spots.id', $validated['spot_id'])
     ->join('spaces', 'spaces.id', '=', 'spots.space_id')->join('categories', 'spaces.space_category_id', 'categories.id')
     ->select('spots.*', 'spaces.space_name as space_name', 'spaces.space_category_id', 'spaces.space_fee', 'spaces.min_space_discount_time', 
@@ -204,10 +207,11 @@ ReservedSpots::insert($reservedSpotsData);
 
         $invoiceData = [
             'user_id' => $validated['user_id'],
-            'space_price' => $tenant->space_fee,
+            'space_price' => $tenant->space->space_fee,
             'total_price' => $amount,
-            'space_category' => $tenant->space_category,
-            'space' => $tenant->space_name,
+            'space_category' => $tenant->space->category->category,
+            'space' => $tenant->space->space_name,
+            'space_booking_type' => $tenant->space->category->booking_type,
             'booked_by_user' => "{$loggedUser->first_name} {$loggedUser->last_name}",
             'user_invoice' => "{$invoiceUser->first_name} {$invoiceUser->last_name}",
             'tenant_name' => $tenantData->company_name,
@@ -295,8 +299,8 @@ private function normalizeChosenDays(array $days)
     return collect($days)->map(function ($day) {
         return [
             'day' => strtolower($day['day']),
-            'start_time' => Carbon::parse($day['start_time'])->timezone('Africa/Lagos'),
-            'end_time' => Carbon::parse($day['end_time'])->timezone('Africa/Lagos'),
+            'start_time' => Carbon::parse($day['start_time']),
+            'end_time' => Carbon::parse($day['end_time']),
         ];
     });
 }
@@ -368,13 +372,13 @@ private function hasConflicts($spotId, $chosenDays)
 
         foreach ($chosenDays as $inputDay) {
             $inputDayName = strtolower($inputDay['day']);
-            $inputStart = Carbon::parse($inputDay['start_time'])->timezone('Africa/Lagos');
-            $inputEnd = Carbon::parse($inputDay['end_time'])->timezone('Africa/Lagos');
+            $inputStart = Carbon::parse($inputDay['start_time']);
+            $inputEnd = Carbon::parse($inputDay['end_time']);
 
             foreach ($bookedSlots as $slot) {
                 $bookedDay = strtolower($slot['day']);
-                $bookedStart = Carbon::parse($slot['start_time'])->timezone('Africa/Lagos');
-                $bookedEnd = Carbon::parse($slot['end_time'])->timezone('Africa/Lagos');
+                $bookedStart = Carbon::parse($slot['start_time']);
+                $bookedEnd = Carbon::parse($slot['end_time']);
 
                 if (
                     $inputDayName === $bookedDay &&
@@ -422,8 +426,8 @@ private function handleConflictResponse($spotId, $chosenDays)
 
             foreach ($bookedSlots as $bookedSlot) {
                 $bookedDay = strtolower($bookedSlot['day']);
-                $bookedStart = Carbon::parse($bookedSlot['start_time'])->timezone('Africa/Lagos');
-                $bookedEnd = Carbon::parse($bookedSlot['end_time'])->timezone('Africa/Lagos');
+                $bookedStart = Carbon::parse($bookedSlot['start_time']);
+                $bookedEnd = Carbon::parse($bookedSlot['end_time']);
 
                 if (
                     $chosenDay === $bookedDay &&
@@ -464,14 +468,45 @@ private function handleConflictResponse($spotId, $chosenDays)
 
 
 
+// private function calculateTotalDuration($chosenDays, $availability)
+// {
+//     $availableDays= $availability->keyBy(fn($item) => strtolower($item->day));
+//     return $chosenDays->sum(function ($day) use ($availableDays) {
+//         $start = $day['start_time'];
+//         $end = $day['end_time'];
+//         return $start->diffInHours($end);
+//     });
+// }
+
 private function calculateTotalDuration($chosenDays, $availability)
 {
     $availableDays = $availability->keyBy(fn($item) => strtolower($item->day));
-    return $chosenDays->sum(function ($day) use ($availableDays) {
-        $start = $day['start_time'];
-        $end = $day['end_time'];
-        return $start->diffInHours($end);
-    });
+
+    $totalDuration = 0;
+    $daysWithDurations = [];
+
+    foreach ($chosenDays as $day) {
+        $dayName = strtolower($day['day']);
+        $start = Carbon::parse($day['start_time']);
+        $end = Carbon::parse($day['end_time']);
+
+        // Calculate duration in hours (you can use diffInMinutes if needed)
+        $duration = $start->diffInHours($end);
+
+        $totalDuration += $duration;
+
+        $daysWithDurations[] = [
+            'day' => $day['day'],
+            'start_time' => $start->format('H:i'),
+            'end_time' => $end->format('H:i'),
+            'duration' => $duration
+        ];
+    }
+
+    return [
+        'days' => $daysWithDurations,
+        'total_duration' => $totalDuration
+    ];
 }
 
 private function isInvalidRecurrentBooking($validated, $tenant)
@@ -481,53 +516,48 @@ private function isInvalidRecurrentBooking($validated, $tenant)
            $tenant->booking_type === 'monthly';
 }
 
-private function calculateBookingAmount($validated, $tenant, $totalDuration)
+   private function calculateBookingAmount($validated, $tenant, $totalDuration)
 {
+    $numberWeeks = max((int) ($validated['number_weeks'] ?? 1), 1); // ensure at least 1
+    $numberMonths = max((int) ($validated['number_months'] ?? 0), 1);
+    $numberDays = count($validated['chosen_days'] ?? []);
 
-    $number_weeks =$validated['number_weeks'] ?? 1;
-    $number_months = $validated['number_months'] ?? 1;
-    $number_days = $validated['number_days'] ?? 1; // in case you're using daily bookings
+    $discount = $tenant->space_discount > 0 ? $tenant->space_discount : 0;
+    $spaceFee = $tenant->space->space_fee;
+    $bookingType = $tenant->space->category->booking_type;
+    $minDiscountTime = $tenant->min_space_discount_time;
 
-    $discount = ($tenant->space_discount > 0) ? $tenant->space_discount : null;
-    
     $total = 0;
-   
-    switch ($tenant->booking_type) {
+    $units = 0;
+
+    switch ($bookingType) {
         case 'monthly':
-            $total =$tenant->space_fee  * $number_months>0?:1;
-            if ($discount && $tenant->min_space_discount_time <= $number_months) {
-                $total -= ($total * ($discount / 100));
-            }
+            $units = $numberMonths;
+            $total = $spaceFee * $units;
             break;
 
         case 'weekly':
-            $total = $tenant->space_fee  * $number_weeks>0 ?:1;
-            if ($discount && $tenant->min_space_discount_time <= $number_weeks) {
-                $total -= ($total * ($discount / 100));
-            }
+            $units = $numberWeeks;
+            $total = $spaceFee * $units;
             break;
 
         case 'hourly':
-           
-           $total = $tenant->space_fee * $totalDuration *( $number_weeks > 0 ?: 1);
-
-            if ($discount && $tenant->min_space_discount_time <= $totalDuration) {
-                $total -= ($total * ($discount / 100));
-            }
+            $units = $totalDuration;
+            $total = $spaceFee * $units * $numberWeeks;
             break;
 
         case 'daily':
-            $total =$tenant->space_fee  * $number_days;
-            if ($discount && $tenant->min_space_discount_time <= $number_days) {
-                $total -= ($total * ($discount / 100));
-            }
+            $units = $numberDays;
+            $total = $spaceFee * $units;
             break;
 
         default:
-            $total = 0;
+            return 0;
     }
-    
 
+    if ($discount && $units >= $minDiscountTime) {
+        $total -= $total * ($discount / 100);
+    }
     return $total;
 }
 
@@ -1025,7 +1055,7 @@ public function getFreeSpots(Request $request, $tenant_slug, $location_id = null
 private function isExpired($book_spot_id)
 {
     return BookSpot::where('id', $book_spot_id)
-        ->where('expiry_day', '<', now('Africa/Lagos'))
+        ->where('expiry_day', '<', now())
         ->exists();
 }
 private function confirmSpot($spotId)
