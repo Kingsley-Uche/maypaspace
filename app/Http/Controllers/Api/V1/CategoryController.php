@@ -17,11 +17,11 @@ class CategoryController extends Controller
 
         $tenant = $this->checkTenant($tenant_slug);
 
-        if($user->tenant_id !== $tenant->id){
+        if($user->tenant_id != $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403); 
         }
 
-        if($user->user_type_id !== 1 && $user->user_type_id !== 2){
+        if($user->user_type_id != 1 && $user->user_type_id != 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
         //validate request data
@@ -93,7 +93,7 @@ class CategoryController extends Controller
 
         $user = $request->user();
 
-        if($user->user_type_id !== 1 && $user->user_type_id !== 2){
+        if($user->user_type_id != 1 && $user->user_type_id !=2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
         $validator = Validator::make($request->all(), [
@@ -117,7 +117,7 @@ class CategoryController extends Controller
          //using the provided id, find the category to be updated
          $category = Category::findOrFail($id);
 
-        if($category->tenant_id !== $tenant->id){
+        if($category->tenant_id != $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403);
         } 
  
@@ -145,7 +145,7 @@ class CategoryController extends Controller
 
         $user = $request->user();
 
-        if((int)$user->user_type_id !== 1 && (int)$user->user_type_id !== 2){
+        if((int)$user->user_type_id != 1 && (int)$user->user_type_id != 2){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
          //validate the ID
@@ -160,7 +160,7 @@ class CategoryController extends Controller
         //find the category to be deleted using the Id
         $category = Category::findOrFail($request->id);
 
-        if((int)$category->tenant_id !== $tenant->id){
+        if((int)$category->tenant_id != $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 

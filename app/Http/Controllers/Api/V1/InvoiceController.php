@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\InvoiceModel;
 use App\Models\User;
 use App\Models\Tenant;
-use App\Models\SpacePayment;
+use App\Models\SpacePaymentModel;
 use Carbon\Carbon;
 
 class InvoiceController extends Controller
@@ -161,12 +161,15 @@ class InvoiceController extends Controller
         $ref = $request->invoice_ref;
 
         $payment = SpacePaymentModel::where('invoice_ref', $ref)->first();
+        $invoice_model = InvoiceModel::where('invoice_ref', $ref)->first();
+
 
         if (!$payment) {
             return response()->json(['error' => 'Payment not found for given invoice_ref'], 404);
         }
 
         $payment->update(['payment_status' => 'completed']);
+        $invoice_model->update(['status'=>'paid']);
 
         return response()->json([
             'message' => 'Invoice closed successfully',

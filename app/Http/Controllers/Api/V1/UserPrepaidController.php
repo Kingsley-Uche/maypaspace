@@ -137,10 +137,12 @@ class UserPrepaidController extends Controller
 
             DB::commit();
 
+          
             return response()->json([
                 'user' => $user,
                 'amount' => $amount,
                 'url' => $paymentData['data']['authorization_url'],
+                'access_code'=>$paymentData['data']['access_code'],
                 'payment_ref' => $reference,
                 'message' => 'Booking initialized successfully.'
             ], 200);
@@ -243,6 +245,7 @@ class UserPrepaidController extends Controller
                 'number_months' => $validated['number_months'] ?? 1,
                 'expiry_day' => $expiryDay,
                 'start_time' => $chosenDays->first()['start_time'],
+                'tenant_id'=> $tenant->tenant_id,
             ]);
 
             // Create reserved spots
@@ -530,46 +533,56 @@ class UserPrepaidController extends Controller
     /**
      * Calculate booking amount
      */
-    private function calculateBookingAmount($validated, $tenant, $totalDuration)
+     private function calculateBookingAmount($validated, $tenant, $totalDuration)
     {
-        $numberWeeks = (int) ($validated['number_weeks'] ?? 1);
+        
+        $numberWeeks = (int) ($validated['number_weeks']?? 1);
         $numberMonths = (int) ($validated['number_months'] ?? 0);
         $numberDays = count($validated['chosen_days']);
         $discount = ($tenant->space_discount > 0) ? $tenant->space_discount : null;
+        $tenant->min_space_discount_time = ($tenant->min_space_discount_time > 0) ? $tenant->min_space_discount_time :null;
         $total = 0;
+        if($numberWeeks===0){
+            $numberWeeks = 1;
+        }
+        if($numberMonths===0){
+            $numberMonths=1;
+            
+        }
 
         switch ($tenant->space->category->booking_type) {
             case 'monthly':
-                $total = $tenant->space->space_fee * ($numberMonths ?: 1);
-                if ($discount && $tenant->min_space_discount_time <= $numberMonths) {
+                $total = $tenant->space->space_fee * ($numberMonths);
+                if ($discount && $tenant->min_space_discount_time && $tenant->min_space_discount_time <= $numberMonths) {
                     $total -= ($total * ($discount / 100));
                 }
                 break;
 
             case 'weekly':
                 $total = $tenant->space->space_fee * $numberWeeks;
-                if ($discount && $tenant->min_space_discount_time <= $numberWeeks) {
+                if ($discount && $tenant->min_space_discount_time && $tenant->min_space_discount_time <= $numberWeeks) {
                     $total -= ($total * ($discount / 100));
                 }
                 break;
 
             case 'hourly':
+                
                 $total = $tenant->space->space_fee * $totalDuration * $numberWeeks;
-                if ($discount && $tenant->min_space_discount_time <= $totalDuration) {
+                if ($discount  && $tenant->min_space_discount_time && $tenant->min_space_discount_time <= $totalDuration) {
                     $total -= ($total * ($discount / 100));
                 }
                 break;
 
             case 'daily':
                 $total = $tenant->space->space_fee * $numberDays;
-                if ($discount && $tenant->min_space_discount_time <= $numberDays) {
+                if ($discount && $tenant->min_space_discount_time && $tenant->min_space_discount_time <= $numberDays) {
                     $total -= ($total * ($discount / 100));
-                }
+                } 
                 break;
 
-            default:
-                $total = 0;
         }
+        
+    
         return $total;
     }
 

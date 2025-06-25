@@ -23,9 +23,10 @@ class Spot extends Model
         return $this->belongsTo(Location::class, 'location_id');
     }
     public function floor()
-    {
-        return $this->belongsTo(Floor::class, 'floor_id');
-    }
+{
+    return $this->belongsTo(Floor::class, 'floor_id','id');
+}
+
     public function bookedspots()
     {
         return $this->hasMany(BookSpot::class, 'spot_id');

@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Db;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\Tenant;
 

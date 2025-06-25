@@ -35,7 +35,7 @@ class SubscriptionController extends Controller
         $subscription = Subscription::create([
             'plan_id' => $plan->id,
             'starts_at' => now(),
-            'ends_at' => now()->addMonths($plan->duration),
+            'ends_at' => now()->addMonths((int)$plan->duration),
             'status' => 'active',
         ]);
 

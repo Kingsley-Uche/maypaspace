@@ -24,7 +24,8 @@ use App\Http\Controllers\Api\V1\{
     TaxController,
     BankController,
     InvoiceController,
-    UserPrepaidController
+    UserPrepaidController,
+    Visitors
 };
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureTenantHasActivePlan;
@@ -84,9 +85,12 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
     Route::post('/confirm-user', [UserAuthController::class,'sendOtp']);
     Route::post('/verify-otp', [UserAuthController::class,'verifyOtp']);
     Route::post('/change-password', [UserAuthController::class,'resetPassword']);
-    Route::get('/get/spaces', [BookSpotController::class,'getFreeSpots']);
+    Route::get('/get/spaces/{id}', [BookSpotController::class,'getFreeSpots']);
+    Route::get('/get/spaces/category/{location}', [BookSpotController::class,'getFreeSpotsCateg']);
     Route::post('/initiate/pay/spot', [PaymentController::class,'initiatePay']);
     Route::post('/confirm/pay/spot', [PaymentController::class,'confirmPayment']);
+    Route::get('/get/locations', [Visitors::class,'index']); 
+    Route::post('/get/spaces/category/{location}', [Visitors::class,'GetCategory']);
 
     Route::middleware(['auth:sanctum', EnsureTenantHasActivePlan::class])->group(function () {
         Route::post('/settings/workspace/time/create', [TimeSetUp::class,'store']);
