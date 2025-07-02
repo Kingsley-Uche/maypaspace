@@ -864,6 +864,7 @@ public function getFreeSpots(Request $request, $tenant_slug, $location_id = null
                     'floor_name' => $spot->floor->name ?? 'Unknown',
                     'floor_id' => $spot->floor_id,
                     'category_id'=>$spot->space->space_category_id,
+                    'book_time'=>$space->category->booking_type ?? 'Unknown',
                 ];
             }
         });
@@ -1095,7 +1096,7 @@ public function getFreeSpotsCateg(Request $request, $tenant_slug, $location_id =
             'location:id,name',
             'floor:id,name',
             'space:id,space_name,space_fee,space_category_id',
-            'space.category:id,category',
+            'space.category:id,category,book_time',
         ])
         ->join('spaces', 'spots.space_id', '=', 'spaces.id')
         ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
@@ -1120,6 +1121,7 @@ public function getFreeSpotsCateg(Request $request, $tenant_slug, $location_id =
                 'location_name' => $spot->location->name ?? 'Unknown',
                 'floor_name' => $spot->floor->name ?? 'Unknown',
                 'floor_id' => $spot->floor_id,
+                'book_time' => $spot->space->category->book_time ?? 'Unknown',
             ];
         }
     });
