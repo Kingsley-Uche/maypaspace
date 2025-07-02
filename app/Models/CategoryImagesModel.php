@@ -26,9 +26,6 @@ class CategoryImagesModel extends Model
     {
         return $this->belongsTo(Category::class);
     }
-    public function images()
-{
-    return $this->hasMany(CategoryImagesModel::class, 'category_id');
-}
+  
 
 }

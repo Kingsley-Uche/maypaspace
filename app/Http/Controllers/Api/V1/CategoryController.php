@@ -151,10 +151,11 @@ public function create(Request $request, $tenant_slug)
         $tenant = $this->checkTenant($tenant_slug);
         if (!$tenant instanceof Tenant) return $tenant;
 
-        $categories = Category::where(function ($query) use ($tenant) {
-            $query->where('tenant_id', $tenant->id)
-                  ->orWhereNull('tenant_id');
-        })->with('images')->get();
+       $categories = Category::where('tenant_id', $tenant->id)
+    ->with(['images' => function ($q) {
+        $q->select('id', 'image_path', 'category_id');
+    }])->get();
+
 
         return response()->json(['data' => $categories], 200);
     }

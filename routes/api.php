@@ -100,7 +100,7 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
 
     Route::middleware(['auth:sanctum', EnsureTenantHasActivePlan::class])->group(function () {
         Route::post('/settings/workspace/time/create', [TimeSetUp::class,'store']);
-        Route::post('/settings/workspace/time/update', [TimeSetUp::class,'store']);
+        Route::post('/settings/workspace/time/update', [TimeSetUp::class,'update']);
         Route::post('/settings/workspace/time/delete', [TimeSetUp::class,'destroy']);
         Route::post('/settings/workspace/time/Single', [TimeSetUp::class,'show']);
         Route::get('/settings/workspace/time/all', [TimeSetUp::class,'index']);
