@@ -30,4 +30,8 @@ class Category extends Model
     {
         return $this->belongsTo(Tenant::class);
     }
+        public function images()
+{
+    return $this->hasMany(CategoryImagesModel::class, 'category_id');
+}
 }

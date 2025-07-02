@@ -235,4 +235,19 @@ class UserAuthController extends Controller
     {
         return random_int(100000, 999999);
     }
+    
+    
+   public function getName(Request $request, $tenant_slug)
+{
+    $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+    if (!$tenant) {
+        return response()->json(['message' => 'Tenant not found.'], 404);
+    }
+
+    return response()->json([
+        'company_name' => $tenant->company_name,
+        'slug'=>$tenant->slug
+    ]);
+}
 }

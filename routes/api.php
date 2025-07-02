@@ -83,6 +83,7 @@ Route::prefix('system-admin')->group(function(){
 });
 
 Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
+    Route::post('/get/name',  [UserAuthController::class,'getName']);
     Route::post('/login', [UserAuthController::class,'login']);
     Route::post('/confirm-user', [UserAuthController::class,'sendOtp']);
     Route::post('/verify-otp', [UserAuthController::class,'verifyOtp']);
@@ -99,7 +100,7 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
 
     Route::middleware(['auth:sanctum', EnsureTenantHasActivePlan::class])->group(function () {
         Route::post('/settings/workspace/time/create', [TimeSetUp::class,'store']);
-        Route::post('/settings/workspace/time/update', [TimeSetUp::class,'store']);
+        Route::post('/settings/workspace/time/update', [TimeSetUp::class,'update']);
         Route::post('/settings/workspace/time/delete', [TimeSetUp::class,'destroy']);
         Route::post('/settings/workspace/time/Single', [TimeSetUp::class,'show']);
         Route::get('/settings/workspace/time/all', [TimeSetUp::class,'index']);
@@ -191,7 +192,7 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::get('/banks', [BankController::class, 'index']);
         Route::get('/banks/{id}', [BankController::class, 'show']);
         Route::post('/bank/create', [BankController::class, 'store']);
-        Route::post('/banks/update/{id}', [BankController::class, 'update']);
+        Route::post('/bank/update/{id}', [BankController::class, 'update']);
         Route::post('/bank/delete', [BankController::class, 'destroy']);
 
         //crud for invoice

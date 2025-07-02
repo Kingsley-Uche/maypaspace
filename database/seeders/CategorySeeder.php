@@ -16,26 +16,35 @@ class CategorySeeder extends Seeder
         DB::table('categories')->insert([
             [
              'category' => 'Co-Workspace',
+             'booking_type' => 'daily',
             ],
 
             [
             'category' => 'Private Office',
+            'booking_type' => 'monthly',
             ],
+
+            
 
             [
             'category' => 'Dedicated Desk',
+            'booking_type' => 'monthly',
             ],
 
             [
             'category' => 'Conference Room',
+            'booking_type' => 'hourly',
             ],
 
             [
             'category' => 'Office Pod',
+            'booking_type' => 'hourly',
             ],
+
 
             [
             'category' => 'Event Space',
+            'booking_type' => 'daily',
             ],
             
          ]);
