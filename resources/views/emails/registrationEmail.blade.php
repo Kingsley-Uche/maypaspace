@@ -12,7 +12,7 @@
    
     @php
         $baseUrl = env('FRONTEND_URL', config('app.url')); // Fallback to config if .env not set
-        $loginUrl = $baseUrl . '/' . $messageContent['slug'] . '/login';
+        $loginUrl = $baseUrl . '/' . $messageContent['slug'] . '/auth/login';
     @endphp
 
     <p>

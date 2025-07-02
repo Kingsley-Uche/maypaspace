@@ -83,6 +83,7 @@ Route::prefix('system-admin')->group(function(){
 });
 
 Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
+    Route::post('/get/name',  [UserAuthController::class,'getName']);
     Route::post('/login', [UserAuthController::class,'login']);
     Route::post('/confirm-user', [UserAuthController::class,'sendOtp']);
     Route::post('/verify-otp', [UserAuthController::class,'verifyOtp']);
@@ -191,7 +192,7 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::get('/banks', [BankController::class, 'index']);
         Route::get('/banks/{id}', [BankController::class, 'show']);
         Route::post('/bank/create', [BankController::class, 'store']);
-        Route::post('/banks/update/{id}', [BankController::class, 'update']);
+        Route::post('/bank/update/{id}', [BankController::class, 'update']);
         Route::post('/bank/delete', [BankController::class, 'destroy']);
 
         //crud for invoice
