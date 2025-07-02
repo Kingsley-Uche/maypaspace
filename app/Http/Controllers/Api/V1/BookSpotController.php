@@ -807,11 +807,78 @@ public function update(Request $request, $slug)
 }
 
  
-public function getFreeSpots(Request $request, $tenant_slug, $location_id = null)
-{
-    $spotsByCategory = []; // Initialize before usage
+// public function getFreeSpots(Request $request, $tenant_slug, $location_id = null)
+// {
+//     $spotsByCategory = []; // Initialize before usage
 
-    // Validate if location_id is present
+//     // Validate if location_id is present
+//     if ($request->has('location_id') && $request->location_id !== null) {
+//         $validator = Validator::make($request->all(), [
+//             'location_id' => 'required|numeric|exists:locations,id',
+//         ]);
+
+//         if ($validator->fails()) {
+//             return response()->json(['error' => $validator->errors()], 422);
+//         }
+
+//         $location_id = $request->location_id;
+//     }
+
+//     // Fetch tenant by slug
+//     $tenant = Tenant::where('slug', $tenant_slug)->first();
+//     if (!$tenant) {
+//         return response()->json(['error' => 'Workspace doesn\'t exist'], 404);
+//     }
+
+//     // Build query
+//     $query = Spot::where('spots.tenant_id', $tenant->id)
+//         ->where('spots.book_status', 'no');
+
+//     if ($location_id) {
+//         $query->where('spots.location_id', $location_id);
+//     }
+
+//     // Get data in chunks to optimize memory usage
+//     $query->select('spots.id', 'spots.space_id', 'spots.location_id', 'spots.floor_id')
+//         ->with([
+//             'location:id,name',
+//             'floor:id,name',
+//             'space:id,space_name,space_fee,space_category_id',
+//             'space.category:id,category,booking_type',
+//             'space.category.images:id,category_id,image_path',
+//         ])
+//         ->join('spaces', 'spots.space_id', '=', 'spaces.id')
+//         ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
+//         ->orderBy('categories.category')
+//         ->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
+//             foreach ($freeSpots as $spot) {
+//                 $categoryName = $spot->space->category->category ?? 'Uncategorized';
+//                 if (!isset($spotsByCategory[$categoryName])) {
+//                     $spotsByCategory[$categoryName] = [];
+//                 }
+
+//                 $spotsByCategory[$categoryName][] = [
+//                     'spot_id' => $spot->id,
+//                     'space_name' => $spot->space->space_name,
+//                     'space_fee' => $spot->space->space_fee,
+//                     'location_id' => $spot->location_id,
+//                     'location_name' => $spot->location->name ?? 'Unknown',
+//                     'floor_name' => $spot->floor->name ?? 'Unknown',
+//                     'floor_id' => $spot->floor_id,
+//                     'category_id'=>$spot->space->space_category_id,
+//                     'book_time'=>$space->category->booking_type ?? 'Unknown', 
+//                 ];
+//             }
+//         });
+
+//     return response()->json(['data' => $spotsByCategory], 200);
+// }
+
+   public function getFreeSpots(Request $request, $tenant_slug, $location_id = null)
+{
+    $spotsByCategory = [];
+
+    // Validate location_id
     if ($request->has('location_id') && $request->location_id !== null) {
         $validator = Validator::make($request->all(), [
             'location_id' => 'required|numeric|exists:locations,id',
@@ -824,13 +891,13 @@ public function getFreeSpots(Request $request, $tenant_slug, $location_id = null
         $location_id = $request->location_id;
     }
 
-    // Fetch tenant by slug
+    // Fetch tenant
     $tenant = Tenant::where('slug', $tenant_slug)->first();
     if (!$tenant) {
         return response()->json(['error' => 'Workspace doesn\'t exist'], 404);
     }
 
-    // Build query
+    // Query for free spots
     $query = Spot::where('spots.tenant_id', $tenant->id)
         ->where('spots.book_status', 'no');
 
@@ -838,24 +905,33 @@ public function getFreeSpots(Request $request, $tenant_slug, $location_id = null
         $query->where('spots.location_id', $location_id);
     }
 
-    // Get data in chunks to optimize memory usage
     $query->select('spots.id', 'spots.space_id', 'spots.location_id', 'spots.floor_id')
         ->with([
             'location:id,name',
             'floor:id,name',
             'space:id,space_name,space_fee,space_category_id',
-            'space.category:id,category',
+            'space.category:id,category,booking_type',
+            'space.category.images:id,image_path,category_id', // include category images only
         ])
         ->join('spaces', 'spots.space_id', '=', 'spaces.id')
         ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
         ->orderBy('categories.category')
         ->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
             foreach ($freeSpots as $spot) {
-                $categoryName = $spot->space->category->category ?? 'Uncategorized';
+                $category = $spot->space->category ?? null;
+                $categoryName = $category?->category ?? 'Uncategorized';
+
                 if (!isset($spotsByCategory[$categoryName])) {
-                    $spotsByCategory[$categoryName] = [];
+                    $spotsByCategory[$categoryName] = [
+                        'category_id' => $category->id ?? null,
+                        'category_name' => $categoryName,
+                        'booking_type' => $category->booking_type ?? 'Unknown',
+                        'images' => $category?->images->pluck('image_path')->toArray() ?? [],
+                        'spots' => [],
+                    ];
                 }
-                $spotsByCategory[$categoryName][] = [
+
+                $spotsByCategory[$categoryName]['spots'][] = [
                     'spot_id' => $spot->id,
                     'space_name' => $spot->space->space_name,
                     'space_fee' => $spot->space->space_fee,
@@ -863,16 +939,13 @@ public function getFreeSpots(Request $request, $tenant_slug, $location_id = null
                     'location_name' => $spot->location->name ?? 'Unknown',
                     'floor_name' => $spot->floor->name ?? 'Unknown',
                     'floor_id' => $spot->floor_id,
-                    'category_id'=>$spot->space->space_category_id,
-                    'book_time'=>$space->category->booking_type ?? 'Unknown',
                 ];
             }
         });
 
-    return response()->json(['data' => $spotsByCategory], 200);
+    return response()->json(['data' => array_values($spotsByCategory)], 200);
 }
 
-   
     
     
     public function getAllSpots(Request $request)
@@ -1069,13 +1142,14 @@ private function confirmSpot($spotId)
  
 public function getFreeSpotsCateg(Request $request, $tenant_slug, $location_id = null)
 {
+
     $spotsByCategory = []; // Initialize result array
 
     // Validate category_id if present
     $validator = Validator::make($request->all(), [
         'category_id' => 'required|numeric|exists:categories,id',
     ]);
-
+    
     if ($validator->fails()) {
         return response()->json(['error' => $validator->errors()], 422);
     }
