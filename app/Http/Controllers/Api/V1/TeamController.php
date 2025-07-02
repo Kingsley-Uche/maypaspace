@@ -23,7 +23,8 @@ class TeamController extends Controller
         $manager = '';
 
         //We identify the tenant using slug
-        $tenant = $this->checkTenant($tenant_slug);
+        // $tenant = $this->checkTenant($tenant_slug);
+        $tenant = Tenant::where('slug', $tenant_slug)->with('subscription.plan')->first();
 
         $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
 
@@ -48,6 +49,14 @@ class TeamController extends Controller
 
             //Check Email
             $checkEmail = User::where('email', $request->email)->where('tenant_id', $tenant->id)->get();
+
+            //check Plan Coverage
+
+            $response = $this->checkPlanCoverage($tenant);
+
+            if($response == null){
+                return response()->json(['message'=> 'The plan you are trying to subscribe to does not support the number of users this tenant has'], 422);
+            }
 
             if(!$checkEmail->isEmpty()){
                 return response()->json(['errors' => 'This Email has already been registered on this platform'], 422);
@@ -238,7 +247,8 @@ class TeamController extends Controller
         $user = $request->user();
 
         //We identify the tenant using slug
-        $tenant = $this->checkTenant($tenant_slug);
+        // $tenant = $this->checkTenant($tenant_slug);
+        $tenant = Tenant::where('slug', $tenant_slug)->with('subscription.plan')->first();
 
         $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_user'])->get();
 
@@ -247,6 +257,12 @@ class TeamController extends Controller
         }   
 
         if($request->has('first_name')){
+            $response = $this->checkPlanCoverage($tenant);
+
+            if($response == null){
+                return response()->json(['message'=> 'The plan you are trying to subscribe to does not support the number of users this tenant has'], 422);
+            }
+
             $validator = Validator::make($request->all(), [
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
@@ -580,6 +596,22 @@ class TeamController extends Controller
         $response = $this->sendRegistrationEmail($messageContent);
 
         return ["response" => $response, "user"=>$user];
+
+    }
+
+    private function checkPlanCoverage($tenant){
+        $tenantUsers = User::where('tenant_id', $tenant->id)->get();
+
+            //check plan user coverage
+
+        $tenantUsers = count($tenantUsers);
+        $planUsers = $tenant->subscription?->plan->num_of_users;
+
+        if($tenantUsers >= $planUsers){
+            return null;
+        }
+
+        return 1;
 
     }
 }

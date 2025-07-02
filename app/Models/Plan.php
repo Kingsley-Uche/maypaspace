@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Plan extends Model
 {
-    protected $fillable = ['name', 'price', 'duration'];
+    protected $fillable = ['name', 'price', 'duration', 'num_of_locations', 'num_of_users'];
 
     public function subscriptions()
     {
