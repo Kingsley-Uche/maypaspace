@@ -25,7 +25,7 @@ use App\Http\Controllers\Api\V1\{
     BankController,
     InvoiceController,
     UserPrepaidController,
-    Visitors
+    Visitors,
     TenantLogoController
 };
 use App\Http\Middleware\EnsureAdmin;

@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use App\Models\Admin;
 use App\Models\User;
+use Illuminate\Http\Request;
+
 
 class SystemAdminAuthController extends Controller
 {
