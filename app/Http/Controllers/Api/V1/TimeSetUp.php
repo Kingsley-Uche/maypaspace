@@ -171,7 +171,7 @@ if ($status) {
             return response()->json(['message' => 'No operating hours found to delete.'], 404);
         }
     }
-    public function update(Request $srequest, $slug){
+    public function update(Request $request, $slug){
           $user = Auth::user();
 
         $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_space'])->get();
