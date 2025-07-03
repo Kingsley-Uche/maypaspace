@@ -363,19 +363,33 @@ class UserFunctionsController extends Controller
         return ["response" => $response, "user"=>$user];
 
     }
-    public function create_visitor_user($data,$tenant){
-        $tenantUsers = User::where('tenant_id', $tenant->id)->get();
+   public function create_visitor_user($data, $tenant)
+{
+    // Count existing users for the tenant
+    $tenantUsers = User::where('tenant_id', $tenant->id)->count();
 
-        $tenantUsers = count($tenantUsers);
-        $planUsers = $tenant->subscription?->plan->num_of_users;
+    // Get the tenant with subscription and plan data
+    $tenant_user = Tenant::with([
+        'subscription:id,plan_id,tenant_id',
+        'subscription.plan:id,num_of_users'
+    ])->where('id', $tenant->id)->first();
 
-        if($tenantUsers >= $planUsers){
-            return response()->json(['message'=> 'User capacity reached'], 422);
-        }
-        $data['user_type_id'] = 3;
-        
-        $user =$this->completeCreate($data, $tenant);
-        return $user['user'];
+    // Safely get the number of allowed users in the plan
+    $planUsers = $tenant_user->subscription?->plan->num_of_users ?? 0;
+
+    // Check if user limit has been reached
+    if ($tenantUsers >= $planUsers) {
+        return ['error' => 'user capacity reached'];
     }
+
+    // Set user type for visitor
+    $data['user_type_id'] = 3;
+
+    // Create the user
+    $user = $this->completeCreate($data, $tenant);
+
+    // Return only the created user
+    return $user['user'];
+}
 
 }

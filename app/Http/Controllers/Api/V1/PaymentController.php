@@ -25,7 +25,7 @@ class PaymentController extends Controller
     public function initiatePay(Request $request, $slug)
     {
         DB::beginTransaction();
-        try {
+     try {
             //Validate input
             $validated = $this->validateBookingRequest($request);
             
@@ -111,6 +111,11 @@ $validated['user_type_id'] = 3;
                 'spot_id' => $tenant->id,
                 'slug' => $slug,
             ]);
+            
+           if (isset($user['error'])) {
+    return response()->json(['message' => $user['error']],422);
+}
+
 
             // Initialize Paystack payment
             $paymentData = $this->initializePaystackPayment($user->email, $amount, $slug);
@@ -151,15 +156,15 @@ $validated['user_type_id'] = 3;
                 'access_code'=>$paymentData['data']['access_code'],
                 'message' => 'Booking initialized successfully.'
             ], 200);
-        } catch (Exception $e) {
+     } catch (Exception $e) {
             DB::rollBack();
             Log::error('Payment initiation failed: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json([
                 'error' => 'internal_error',
                 'message' => 'An unexpected error occurred: ' . $e->getMessage()
             ], 500);
-        }
-    }
+       }
+   }
 
     /**
      * Confirm a payment and finalize booking
