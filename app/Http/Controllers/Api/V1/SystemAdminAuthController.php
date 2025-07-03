@@ -10,7 +10,7 @@ use App\Mail\SystemPasswordMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use App\Models\Admin;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -134,7 +134,7 @@ class SystemAdminAuthController extends Controller
                 $response = Mail::to('nemidav@gmail.com')->send(new SystemPasswordMail($messageContent));
              } catch (\Exception $e) {
                  // Log the error for debugging purposes
-                 \Log::error('Error sending Password: ' . $e->getMessage());
+                 Log::error('Error sending Password: ' . $e->getMessage());
 
                  return response()->json(['message' => 'Error sending password.']); 
              }

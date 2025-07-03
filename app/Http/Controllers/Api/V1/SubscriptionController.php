@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Mail\SubscriptionMail;
 
 use App\Models\Tenant;
@@ -22,7 +23,8 @@ class SubscriptionController extends Controller
     public function createSubscription(Request $request){
         $validator = Validator::make($request->all(), [
             'tenant_id' => 'required|numeric|exists:tenants,id',
-            'plan_id' => 'required|numeric|exists:plans,id'
+            'plan_id' => 'required|numeric|exists:plans,id',
+            'duration' => 'required|numeric|gt:0',
         ]);
 
         if($validator->fails()){
@@ -42,7 +44,7 @@ class SubscriptionController extends Controller
         $subscription = Subscription::create([
             'plan_id' => $plan->id,
             'starts_at' => now(),
-            'ends_at' => now()->addMonths((int)$plan->duration),
+            'ends_at' => now()->addMonths((int)$request->duration),
             'status' => 'active',
         ]);
 
@@ -70,7 +72,7 @@ class SubscriptionController extends Controller
            $response = Mail::to($user->email)->send(new SubscriptionMail($messageContent));
         } catch (\Exception $e) {
             // Log the error for debugging purposes
-            \Log::error('Error sending verification email: ' . $e->getMessage());
+            Log::error('Error sending verification email: ' . $e->getMessage());
             return response()->json(['message'=> $e->getMessage()],422);
         }
 
@@ -130,7 +132,6 @@ class SubscriptionController extends Controller
         'price' => 'required|numeric|gte:1',
         'num_of_locations' => 'required|numeric|gte:0',
         'num_of_users' => 'required|numeric|gte:0',
-        'duration' => 'required|numeric|gt:0',
        ]); 
 
         if ($validator->fails()) {
@@ -140,7 +141,6 @@ class SubscriptionController extends Controller
         $plan = Plan::create([
             'name' => $request->name,
             'price' => $request->price,
-            'duration' => $request->duration,
             'num_of_locations' => $request->num_of_locations,
             'num_of_users' => $request->num_of_users,
         ]);
@@ -171,7 +171,6 @@ class SubscriptionController extends Controller
                         Rule::unique('plans', 'name')->ignore($id),
                         ],
             'price' => 'required|numeric|gte:1',
-            'duration' => 'required|numeric|gt:0',
             'num_of_users' => 'required|numeric|gte:0',
             'num_of_locations' => 'required|numeric|gt:0',
         ]); 

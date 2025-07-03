@@ -17,7 +17,6 @@ return new class extends Migration
             $table->decimal('price', 20, 2);
             $table->unsignedBigInteger('num_of_locations');
             $table->unsignedBigInteger('num_of_users');
-            $table->unsignedInteger('duration');
             $table->timestamps();
         });
     }
