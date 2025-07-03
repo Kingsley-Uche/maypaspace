@@ -34,8 +34,8 @@ class Visitors extends Controller
 public function GetCategory(Request $request, $tenant_slug, $location_id = null)
 {
     // Validate access code
-    if ($request->header('code4access') !='b5b2920be76b17c5d1c7dc1c041af3db') {
-        return response()->json(['message' => 'Invalid Access'], 403); // Use 403 for forbidden
+    if ($request->header('code4access') != 'b5b2920be76b17c5d1c7dc1c041af3db') {
+        return response()->json(['message' => 'Invalid Access'], 403);
     }
 
     // Validate tenant
@@ -47,22 +47,37 @@ public function GetCategory(Request $request, $tenant_slug, $location_id = null)
     // Sanitize location_id
     $location_id = strip_tags($location_id);
 
-    // Build query for unique category IDs and names for available spots
+    // Base query
     $query = Spot::where('spots.tenant_id', $tenant->id)
         ->where('spots.book_status', 'no')
         ->join('spaces', 'spots.space_id', '=', 'spaces.id')
         ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
-        ->select('categories.id as category_id', 'categories.category as category_name')
-        ->distinct();
+        ->join('category_images_models', 'categories.id', '=', 'category_images_models.category_id')
+        ->select(
+            'categories.id as category_id',
+            'categories.category as category_name',
+            'category_images_models.image_path as image_url'
+        )
+        ->orderBy('categories.id');
 
     if ($location_id) {
         $query->where('spots.location_id', $location_id);
     }
 
-    // Fetch results
-    $categories = $query->get();
+    // Execute query
+    $results = $query->get();
+
+    // Group results by category
+    $categories = $results->groupBy('category_id')->map(function ($group) {
+        return [
+            'category_id' => $group->first()->category_id,
+            'category_name' => $group->first()->category_name,
+            'images' => $group->pluck('image_url')->unique()->values()
+        ];
+    })->values();
 
     return response()->json(['categories' => $categories], 200);
 }
+
 
 }

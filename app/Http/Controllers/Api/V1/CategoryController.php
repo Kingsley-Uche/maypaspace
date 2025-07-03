@@ -24,13 +24,15 @@ public function create(Request $request, $tenant_slug)
         return response()->json(['message' => 'You are not authorized'], 403);
     }
 
-    $validator = Validator::make($request->all(), [
-        'category' => 'required|string|max:255',
-        'location_id' => 'required|numeric|gte:1|exists:locations,id',
-        'booking_type' => 'required|string|in:hourly,daily,weekly,monthly',
-        'min_duration' => 'required|numeric|gte:1',
-        'category_image.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-    ]);
+  $validator = Validator::make($request->all(), [
+    'category' => 'required|string|max:255',
+    'location_id' => 'required|numeric|gte:1|exists:locations,id',
+    'booking_type' => 'required|string|in:hourly,daily,weekly,monthly',
+    'min_duration' => 'required|numeric|gte:1',
+    'category_image' => 'nullable|array|max:3',
+    'category_image.*' => 'image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+]);
+
 
     if ($validator->fails()) {
         return response()->json(['error' => $validator->errors()], 422);
@@ -92,6 +94,7 @@ public function create(Request $request, $tenant_slug)
         'location_id' => 'required|numeric|gte:1|exists:locations,id',
         'booking_type' => 'required|string|in:hourly,daily,weekly,monthly',
         'min_duration' => 'required|numeric|gte:1',
+         'category_image' => 'nullable|array|max:3',
         'category_image.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
     ]);
 
