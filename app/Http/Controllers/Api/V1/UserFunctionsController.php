@@ -18,7 +18,16 @@ class UserFunctionsController extends Controller
         $user = $request->user();
 
         //We identify the tenant using slug
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
+        $tenant = Tenant::where('slug', $tenant_slug)->with('subscription.plan')->first();
+
+        $tenantUsers = User::where('tenant_id', $tenant->id)->get();
+
+        $tenantUsers = count($tenantUsers);
+        $planUsers = $tenant->subscription?->plan->num_of_users;
+
+        if($tenantUsers >= $planUsers){
+            return response()->json(['message'=> 'The plan you are trying to subscribe to does not support the number of users this tenant has'], 422);
+        }
 
         if (!$tenant) {
             return response()->json(['message' => 'Tenant not found'], 404);
@@ -355,6 +364,14 @@ class UserFunctionsController extends Controller
 
     }
     public function create_visitor_user($data,$tenant){
+        $tenantUsers = User::where('tenant_id', $tenant->id)->get();
+
+        $tenantUsers = count($tenantUsers);
+        $planUsers = $tenant->subscription?->plan->num_of_users;
+
+        if($tenantUsers >= $planUsers){
+            return response()->json(['message'=> 'User capacity reached'], 422);
+        }
         $data['user_type_id'] = 3;
         
         $user =$this->completeCreate($data, $tenant);

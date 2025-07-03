@@ -183,7 +183,18 @@ class SystemAdminFunctionsController extends Controller
 
         $sanitizedSlug = strtolower(str_replace(' ', '', $request->company_name));
 
-        $tenant = Tenant::findOrFail($id);
+        // $tenant = Tenant::findOrFail($id);
+        $tenant = Tenant::with('subscription.plan')->findOrFail($id);
+
+        if($tenant->subscription_id){
+            $plan = $tenant->subscription?->plan;
+
+            $planLocations = $plan->num_of_locations;
+
+            if($planLocations < $request->company_no_location){
+                return response()->json(['message'=> 'The plan this tenant is on does not support the number of locations you want to update to'], 422);
+            }
+        }
 
         $tenant->company_name = $validatedData['company_name'];
         $tenant->slug = $sanitizedSlug;

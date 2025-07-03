@@ -18,6 +18,13 @@ class LocationController extends Controller
         //We identify the tenant using slug
         $tenant = $this->checkTenant($tenant_slug);
 
+        $loc = Location::where('tenant_id', $tenant->id)->get();
+        $location_number = count($loc);
+
+        if($location_number >= $tenant->company_no_location){
+            return response()->json(['message'=> 'you have exceeded the number of locations you can create'], 422);
+        }
+
         $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,create_location'])->get();
 
         $permission = $userType[0]['user_type']['create_location'];

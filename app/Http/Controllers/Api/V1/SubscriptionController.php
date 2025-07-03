@@ -32,6 +32,13 @@ class SubscriptionController extends Controller
         $tenant = Tenant::findOrFail($request->tenant_id);
         $plan = Plan::findOrFail($request->plan_id);
 
+        $tenantLocations = $tenant->company_no_location;
+        $planLocations = $plan->num_of_locations;
+
+        if($planLocations < $tenantLocations){
+            return response()->json(['message'=> 'The plan you are trying to subscribe to does not support the number of locations this tenant has'], 422);
+        }
+
         $subscription = Subscription::create([
             'plan_id' => $plan->id,
             'starts_at' => now(),
@@ -121,6 +128,8 @@ class SubscriptionController extends Controller
        $validator = Validator::make($request->all(), [
         'name' => 'required|string|max:255|unique:plans,name',
         'price' => 'required|numeric|gte:1',
+        'num_of_locations' => 'required|numeric|gte:0',
+        'num_of_users' => 'required|numeric|gte:0',
         'duration' => 'required|numeric|gt:0',
        ]); 
 
@@ -132,6 +141,8 @@ class SubscriptionController extends Controller
             'name' => $request->name,
             'price' => $request->price,
             'duration' => $request->duration,
+            'num_of_locations' => $request->num_of_locations,
+            'num_of_users' => $request->num_of_users,
         ]);
 
         if(!$plan){
@@ -161,6 +172,8 @@ class SubscriptionController extends Controller
                         ],
             'price' => 'required|numeric|gte:1',
             'duration' => 'required|numeric|gt:0',
+            'num_of_users' => 'required|numeric|gte:0',
+            'num_of_locations' => 'required|numeric|gt:0',
         ]); 
 
         if ($validator->fails()) {
