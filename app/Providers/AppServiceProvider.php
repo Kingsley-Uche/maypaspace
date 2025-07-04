@@ -21,10 +21,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Schema::defaultStringLength(191);
         RateLimiter::for('email-sends', function () {
             return Limit::perMinute(10); // 🚀 Limit to 10 emails per minute
         });
+            RateLimiter::for('api', function ($request) {
+            return Limit::perMinute(60)->by(
+                optional($request->user())->id ?: $request->ip()
+            );
+        });
 
-        Schema::defaultStringLength(191);
+        
     }
 }
