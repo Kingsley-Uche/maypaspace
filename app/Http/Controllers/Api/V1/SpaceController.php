@@ -147,7 +147,7 @@ class SpaceController extends Controller
         $tenant = $this->checkTenant($tenant_slug, $user);
 
         $spaces = Space::with(['location', 'floor', 'category'])
-            ->where('tenant_id', $tenant->id)->where('deleted', 'no')
+            ->where('tenant_id', $tenant->id)->where('deleted_at', null)
             ->get();
 
         return response()->json($spaces, 200);
@@ -191,18 +191,15 @@ class SpaceController extends Controller
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
-        $validator = Validator::make($request->all(), [
-            'space_number' => 'required|numeric|gte:1',
-            'location_id' => 'required|numeric|gte:1',
-        ]);
+       $validator = Validator::make($request->all(), [
+    'id' => 'required|numeric|exists:spaces,id',]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+if ($validator->fails()) {
+    return response()->json(['errors' => $validator->errors()], 422);
+}
 
-        $space = Space::where('space_name', $request->name)
-            ->where('location_id', $request->location_id)
-            ->where('floor_id', $request->floor_id)
+
+        $space = Space::where('id', $request->id)
             ->firstOrFail();
 
         $space->deleted = "yes";
