@@ -28,8 +28,8 @@ class SystemAdminFunctionsController extends Controller
             'company_name' => 'required|string|max:255|unique:tenants,company_name',
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'phone' => 'required|numeric|unique:users,phone|regex:/^([0-9\s\-\+\(\)]*)$/',
+            'email' => 'required|email|',
+            'phone' => 'required|numeric|regex:/^([0-9\s\-\+\(\)]*)$/',
             'company_no_location' => 'required|numeric|gte:1',
             'company_countries' => 'required|array',
             'company_countries.*' => 'string',
@@ -126,33 +126,44 @@ class SystemAdminFunctionsController extends Controller
         return response()->json(['data'=> $tenants ],200);
     }
 
-    public function destroyTenant(Request $request){
-        $admin = $request->user();
+    public function destroyTenant(Request $request)
+{
+    $admin = $request->user();
 
-        $role = Admin::where('id', $admin->id)->select('id', 'role_id')->with(['role:id,delete_tenant'])->get();
+    // Retrieve admin role with permission to delete tenant
+    $adminWithRole = Admin::with('role:id,delete_tenant')
+        ->select('id', 'role_id')
+        ->find($admin->id);
 
-        if($role[0]['role']['delete_tenant'] !== 'yes'){
-            return response()->json(['message'=> 'You are not authorized to do this'], 403);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'id' => 'required|numeric|gte:1',
-        ]); 
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $tenant = Tenant::findOrFail($request->id);
-
-        $response = $tenant->delete();
-
-        if(!$response){
-            return response()->json(['message'=> 'Failed to delete, try again later'], 500);
-        }
-
-        return response()->json(['message'=> 'Tenant deleted successfully','data'=> $role ],204);
+    if (!$adminWithRole || $adminWithRole->role->delete_tenant !== 'yes') {
+        return response()->json(['message' => 'You are not authorized to do this'], 403);
     }
+
+    // Validate request
+    $validator = Validator::make($request->all(), [
+        'id' => 'required|numeric|min:1',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    // Attempt to delete tenant and its users
+    $tenant = Tenant::find($request->id);
+
+    if (!$tenant) {
+        return response()->json(['message' => 'Tenant not found'], 404);
+    }
+
+    User::where('tenant_id', $tenant->id)->delete();
+
+    if (!$tenant->delete()) {
+        return response()->json(['message' => 'Failed to delete, try again later'], 500);
+    }
+
+    return response()->json(['message' => 'Tenant deleted successfully'], 200);
+}
+
 
     public function updateTenant(Request $request, $id){
         $admin = $request->user();
