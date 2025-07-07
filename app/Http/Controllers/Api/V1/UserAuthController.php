@@ -31,20 +31,20 @@ class UserAuthController extends Controller
 
             //We get the user from the users table using the tenant-id 
 
-            $user = User::where('email', $request->email)
+            $user = User::with('user_type:id,user_type')->where('email', $request->email)
                 ->where('tenant_id', $tenant->id)
                 ->first();
-
+            
             //if no user is found for that particular tenant using the tenant Id, return response
 
             if (!$user) {
-                return response()->json(['message'=> 'invalid credentials'],404);
+                return response()->json(['message'=> 'invalid credentials'],422);
             }
 
             //If user is found but passwords don't match
 
             if (!$user || !Hash::check($request->password, $user->password)) {
-                return response()->json(['message' => 'Invalid credentials'], 404);
+                return response()->json(['message' => 'Invalid credentials'], 422);
             }
 
             //create Api Token

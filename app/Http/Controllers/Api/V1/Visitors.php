@@ -33,6 +33,8 @@ class Visitors extends Controller
     }
 public function GetCategory(Request $request, $tenant_slug, $location_id = null)
 {
+    dd('you are here');
+    dd($request->header('code4access'));
     // Validate access code
     if ($request->header('code4access') != 'b5b2920be76b17c5d1c7dc1c041af3db') {
         return response()->json(['message' => 'Invalid Access'], 403);
