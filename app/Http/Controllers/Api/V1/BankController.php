@@ -84,8 +84,9 @@ class BankController extends Controller
     /**
      * Update a bank account.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, $slug, $id)
     {
+        
         $user = $request->user();
 
         if (!$this->isAuthorized($user)) {
