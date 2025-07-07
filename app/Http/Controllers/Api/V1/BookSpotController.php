@@ -1167,6 +1167,7 @@ private function confirmSpot($spotId)
  
 public function getFreeSpotsCateg(Request $request, $tenant_slug, $location_id = null)
 {
+    dd('hii');
 
     $spotsByCategory = []; // Initialize result array
 
