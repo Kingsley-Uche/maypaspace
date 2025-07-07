@@ -298,9 +298,7 @@ class PaymentController extends Controller
             ReservedSpots::insert($reservedSpotsData);
 
            
-            if ($updated === 0) {
-                throw new Exception('Payment record not found or already updated');
-            }
+           
         $invoiceController = new InvoiceController();
         $invoiceResponse = $invoiceController->create([
             'user_id' => $validated['user_id'],
@@ -313,9 +311,18 @@ class PaymentController extends Controller
          $invoiceRef = $invoiceResponse['invoice']['invoice_ref'];
         $bookSpot->update(['invoice_ref' => $invoiceRef]);
          // Update payment status
-        $updated=  SpacePaymentModel::where('payment_ref', $validated['reference'])->update(['invoice_ref' => $invoiceRef,
-         'amount' => $paymentInfo['amount'] / 100,
-        'payment_status' => 'completed']);
+       $updated = SpacePaymentModel::where('payment_ref', $validated['reference'])->first();
+
+if (!$updated) {
+    throw new Exception('Payment record not found or already updated');
+} else {
+    $updated->update([
+        'invoice_ref' => $invoiceRef,
+        'amount' => $paymentInfo['amount'] / 100,
+        'payment_status' => 'completed'
+    ]);
+}
+
         
             $invoice_model = InvoiceModel::where('invoice_ref',$validated['reference'])->update(['status'=>'paid']);
 
