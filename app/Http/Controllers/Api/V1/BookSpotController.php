@@ -367,7 +367,7 @@ private function areChosenTimesValid($chosenDays, $availability)
             return false;
         }
     }
-dd('passed');
+
     return true;
 }
 
