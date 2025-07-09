@@ -467,6 +467,7 @@ if (!$updated) {
     /**
      * Normalize chosen days
      */
+<<<<<<< HEAD
     private function normalizeChosenDays(array $days)
     {
         return collect($days)->map(function ($day) {
@@ -477,6 +478,19 @@ if (!$updated) {
             ];
         });
     }
+=======
+   private function normalizeChosenDays(array $days)
+{
+    return collect($days)->map(function ($day) {
+        return [
+            'day' => strtolower($day['day']),
+            'start_time' => Carbon::parse($day['start_time']),
+            'end_time' => Carbon::parse($day['end_time']),
+        ];
+    });
+}
+
+>>>>>>> 7157d3ee1c50c5b17d842a7e7d45112a5895f16a
 
     /**
      * Calculate expiry date
@@ -531,21 +545,32 @@ if (!$updated) {
     /**
      * Validate chosen times
      */
-    private function areChosenTimesValid($chosenDays, $availability)
-    {
-        $availableDays = $availability->keyBy(fn($item) => strtolower($item->day));
-        foreach ($chosenDays as $day) {
-            $open = Carbon::parse($availableDays[$day['day']]->open_time)->format('H:i:s');
-            $close = Carbon::parse($availableDays[$day['day']]->close_time)->format('H:i:s');
-            $start = Carbon::parse($day['start_time'])->format('H:i:s');
-            $end = Carbon::parse($day['end_time'])->format('H:i:s');
-            if ($start < $open || $end > $close) {
-                return false;
-            }
+   private function areChosenTimesValid($chosenDays, $availability)
+{
+    $availableDays = $availability->keyBy(fn($item) => strtolower($item->day));
+    
+
+    foreach ($chosenDays as $day) {
+        $dayKey = strtolower($day['day']);
+
+        if (!isset($availableDays[$dayKey])) return false;
+
+        // Parse availability times in UTC and extract time only
+        $open = Carbon::parse($availableDays[$dayKey]->open_time, 'UTC')->format('H:i');
+        $close = Carbon::parse($availableDays[$dayKey]->close_time, 'UTC')->format('H:i');
+
+    
+        $start = Carbon::parse($day['start_time'],)->setTimezone('UTC')->format('H:i');
+        $end = Carbon::parse($day['end_time'],)->setTimezone('UTC')->format('H:i');
+        
+
+        if ($start < $open || $end > $close) {
+            return false;
         }
-        return true;
     }
 
+    return true;
+}
     /**
      * Check for booking conflicts
      */

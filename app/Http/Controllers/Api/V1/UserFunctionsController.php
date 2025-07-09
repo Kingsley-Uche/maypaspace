@@ -71,7 +71,7 @@ class UserFunctionsController extends Controller
             return response()->json(['message'=> 'You cannot create an owner'], 403);
         }
 
-        if($validatedData['user_type_id'] != 1 && $validatedData['user_type_id'] != 3){
+        if($validatedData['user_type_id'] == 2 && $validatedData['user_type_id'] != 1 && $validatedData['user_type_id'] != 3){
 
             if($userType[0]['user_type']['create_admin'] !== 'yes' || $tenant->id != $user->tenant_id){
                 return response()->json(['message'=> 'You are not authorized'], 403);
@@ -363,8 +363,7 @@ class UserFunctionsController extends Controller
         return ["response" => $response, "user"=>$user];
 
     }
-
-   public function create_visitor_user($data, $tenant)
+    public function create_visitor_user($data, $tenant)
 {
     // Count existing users for the tenant
     $tenantUsers = User::where('tenant_id', $tenant->id)->count();
@@ -392,5 +391,6 @@ class UserFunctionsController extends Controller
     // Return only the created user
     return $user['user'];
 }
+
 
 }

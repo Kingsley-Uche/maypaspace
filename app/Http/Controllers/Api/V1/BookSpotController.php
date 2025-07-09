@@ -1219,23 +1219,6 @@ public function getFreeSpotsCateg(Request $request, $tenant_slug, $location_id =
         $query->where('spots.location_id', $location_id);
     }
 
-    // Chunked processing to optimize memory
-    // $query->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
-    //     foreach ($freeSpots as $spot) {
-    //         $categoryName = $spot->space->category->category ?? 'Uncategorized';
-    //         $spotsByCategory[$categoryName][] = [
-    //             'spot_id' => $spot->id,
-    //             'space_name' => $spot->space->space_name,
-    //             'space_category_id'=>$spot->space->space_category_id,
-    //             'space_fee' => $spot->space->space_fee,
-    //             'location_id' => $spot->location_id,
-    //             'location_name' => $spot->location->name ?? 'Unknown',
-    //             'floor_name' => $spot->floor->name ?? 'Unknown',
-    //             'floor_id' => $spot->floor_id,
-    //             'book_type' => $spot->space->category->booking_type ?? 'Unknown',
-    //         ];
-    //     }
-    // });
      $query->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
             foreach ($freeSpots as $spot) {
                 $category = $spot->space->category ?? null;
