@@ -371,7 +371,7 @@ class UserFunctionsController extends Controller
 
     // Get the tenant with subscription and plan data
     $tenant_user = Tenant::with([
-        'subscription:id,plan_id,tenant_id',
+        'subscription:id,plan_id',
         'subscription.plan:id,num_of_users'
     ])->where('id', $tenant->id)->first();
 

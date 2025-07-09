@@ -472,8 +472,8 @@ if (!$updated) {
         return collect($days)->map(function ($day) {
             return [
                 'day' => strtolower($day['day']),
-                'start_time' => Carbon::parse($day['start_time'])->timezone('Africa/Lagos'),
-                'end_time' => Carbon::parse($day['end_time'])->timezone('Africa/Lagos'),
+                'start_time' => Carbon::parse($day['start_time']),
+                'end_time' => Carbon::parse($day['end_time']),
             ];
         });
     }
