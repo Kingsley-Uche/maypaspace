@@ -62,6 +62,7 @@ class PaymentController extends Controller
      */
     public function initiatePay(Request $request, $slug)
     {
+       
         DB::beginTransaction();
      try {
             //Validate input
@@ -91,6 +92,7 @@ class PaymentController extends Controller
 
             // Normalize chosen days
             $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
+            
             $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
 
             // Check tenant availability
@@ -161,6 +163,7 @@ class PaymentController extends Controller
 
             // Initialize Paystack payment
             $paymentData = $this->initializePaystackPayment($user->email, $amount, $slug);
+          
             if (!$paymentData || !isset($paymentData['data']['authorization_url'], $paymentData['data']['reference'])) {
                 throw new Exception('Failed to initialize payment');
             }
@@ -472,8 +475,8 @@ if (!$updated) {
         return collect($days)->map(function ($day) {
             return [
                 'day' => strtolower($day['day']),
-                'start_time' => Carbon::parse($day['start_time'])->timezone('Africa/Lagos'),
-                'end_time' => Carbon::parse($day['end_time'])->timezone('Africa/Lagos'),
+                'start_time' => Carbon::parse($day['start_time']),
+                'end_time' => Carbon::parse($day['end_time']),
             ];
         });
     }
@@ -660,61 +663,7 @@ if (!$updated) {
                $tenant->space->category->booking_type === 'monthly';
     }
 
-    /**
-     * Calculate booking amount
-     */
-    // private function calculateBookingAmount($validated, $tenant, $totalDuration)
-    // {
     
-
-    //     $numberWeeks = (int) ($validated['number_weeks']);
-    //     //for numberweeks, or months is less than 1, make it 1 only
-    //     if($numberWeeks>0){
-    //         $numberWeeks= $numberWeeks;
-
-    //     }else{
-    //         $numberWeeks = 1;
-    //     }
-    //     $numberMonths = (int) ($validated['number_months'] ?? 0);
-    //     $numberDays = count($validated['chosen_days']);
-    //     $discount = ($tenant->space_discount > 0) ? $tenant->space_discount : null;
-    //     $total = 0;
-
-    //     switch ($tenant->space->category->booking_type) {
-    //         case 'monthly':
-    //             $total = $tenant->space->space_fee * ($numberMonths ?: 1);
-    //             if ($discount && $tenant->min_space_discount_time <= $numberMonths) {
-    //                 $total -= ($total * ($discount / 100));
-    //             }
-    //             break;
-
-    //         case 'weekly':
-    //             $total = $tenant->space->space_fee * $numberWeeks;
-    //             if ($discount && $tenant->min_space_discount_time <= $numberWeeks) {
-    //                 $total -= ($total * ($discount / 100));
-    //             }
-    //             break;
-
-    //         case 'hourly':
-    //             $total = $tenant->space->space_fee * $totalDuration * $numberWeeks;
-    //             dd($tenant->space->space_fee);
-    //             if ($discount && $tenant->min_space_discount_time <= $totalDuration) {
-    //                 $total -= ($total * ($discount / 100));
-    //             }
-    //             break;
-
-    //         case 'daily':
-    //             $total = $tenant->space->space_fee * $numberDays;
-    //             if ($discount && $tenant->min_space_discount_time <= $numberDays) {
-    //                 $total -= ($total * ($discount / 100));
-    //             }
-    //             break;
-
-    //         default:
-    //             $total = 0;
-    //     }
-    //     return $total;
-    // }
     private function calculateBookingAmount($validated, $tenant, $totalDuration)
 {
     $numberWeeks = max((int) ($validated['number_weeks'] ?? 1), 1); // ensure at least 1
@@ -766,6 +715,7 @@ if (!$updated) {
      */
     private function initializePaystackPayment($email, $amount, $slug)
     {
+    
         $tenant = $this->checkTenant($slug);
 
         $booked = new BookedRef();
