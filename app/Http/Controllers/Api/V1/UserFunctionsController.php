@@ -14,7 +14,8 @@ use App\Models\User;
 
 class UserFunctionsController extends Controller
 {
-    public function addUser(Request $request, $tenant_slug){
+    public function addUser(Request $request, $tenant_slug)
+    {
         $user = $request->user();
 
         //We identify the tenant using slug

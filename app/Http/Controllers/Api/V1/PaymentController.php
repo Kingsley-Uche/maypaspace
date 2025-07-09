@@ -467,41 +467,16 @@ if (!$updated) {
     /**
      * Normalize chosen days
      */
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 06b49b8019899f770569452a10da1fbc393eb0c7
     private function normalizeChosenDays(array $days)
     {
         return collect($days)->map(function ($day) {
             return [
                 'day' => strtolower($day['day']),
-<<<<<<< HEAD
-                'start_time' => Carbon::parse($day['start_time']),
-                'end_time' => Carbon::parse($day['end_time']),
-            ];
-        });
-    }
-=======
-   private function normalizeChosenDays(array $days)
-{
-    return collect($days)->map(function ($day) {
-        return [
-            'day' => strtolower($day['day']),
-            'start_time' => Carbon::parse($day['start_time']),
-            'end_time' => Carbon::parse($day['end_time']),
-        ];
-    });
-}
-
->>>>>>> 7157d3ee1c50c5b17d842a7e7d45112a5895f16a
-=======
                 'start_time' => Carbon::parse($day['start_time'])->timezone('Africa/Lagos'),
                 'end_time' => Carbon::parse($day['end_time'])->timezone('Africa/Lagos'),
             ];
         });
     }
->>>>>>> 06b49b8019899f770569452a10da1fbc393eb0c7
 
     /**
      * Calculate expiry date
