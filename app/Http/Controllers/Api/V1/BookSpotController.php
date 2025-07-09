@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\V1\TimeZoneController as TimeZone;
+use App\Models\TimeZoneModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\{BookSpot, Spot, Tenant,Location, User, Space, BookedRef, SpacePaymentModel,TimeSetUpModel,ReservedSpots};
@@ -58,12 +60,13 @@ if (!$tenant) {
         }
         
 
-        $tenantData = Tenant::with('bankAccounts')->where('slug', $slug)->first();
-        $bank = $tenantData->bankAccounts->where('location_id', $tenant->location_id)->first();
-        if(!$bank){
-             return response()->json(['message' => 'Kindly set up bank details for this location'], 404);
-            
-        }
+        $tenantData = Tenant::with('bankAccounts','locations:id,name,state,address,tenant_id','locations.timezone:tenant_id,location_id,utc_time_zone')->where('slug', $slug)->first();
+       $bank = $tenantData->bankAccounts->where('location_id', $tenant->location_id)->first();
+       
+            if (!$bank) {
+                return response()->json(['message' => 'Kindly set up bank details for this location'], 404);
+            }
+
         
         $invoiceUser = User::select('first_name', 'last_name', 'email')->find($validated['user_id']);
 
@@ -90,6 +93,17 @@ if (!$tenant) {
         
             return response()->json(['message' => 'Spot already reserved for selected time'], 409);
         }
+        
+          $timezone_status = new TimeZone();
+            $timezoneCheck = $timezone_status->time_zone_status([
+                'location_id' => $bank->location_id,
+                'tenant_id' => $tenantData->id,
+            ]);
+            
+
+            if (!$timezoneCheck) {
+                return response()->json(['message' => 'Kindly set timezone for this location'], 422);
+            }
         
         // Prevent duplicate reservations for the same user/time/spot
         foreach ($chosenDays as $day) {
@@ -223,6 +237,8 @@ ReservedSpots::insert($reservedSpotsData);
             'invoice_ref' => $invoiceRef,
             'schedule' => $schedule,
             'bank_details' =>$tenantData->bankAccounts->where('location_id', $tenant->location_id)->first(),
+            'time_zone' => optional($tenantData->locations->firstWhere('id', $tenant->location_id)?->timeZone)->utc_time_zone,
+
         ];
 
         DB::commit();

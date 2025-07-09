@@ -108,21 +108,22 @@
             @if (!empty($chosenDays))
                 @foreach ($chosenDays as $day)
                     <tr>
-                        <td>
-                            <strong>Days & Time:</strong><br>
-                            {{ ucfirst($day['day']) }} ({{ \Carbon\Carbon::parse($day['date'])->toFormattedDateString() }}):<br>
-                            {{ \Carbon\Carbon::parse($day['start_time'])->format('g:i A') }} - 
-                            {{ \Carbon\Carbon::parse($day['end_time'])->format('g:i A') }}
-                            @php
-                            $duration = \Carbon\Carbon::parse($day['start_time'])->diffInHours(\Carbon\Carbon::parse($day['end_time']));
-                            @endphp
-                            <br>
-                            <strong>Duration:</strong>
-                            @if( $duration> 1) {{ $duration }} hours
-                            @else
-                            {{$duration}} hour
-                            @endif
-                        </td>
+                      <td>
+    <strong>Days & Time:</strong><br>
+    @php
+        $tzOffset = $invoice['time_zone'] ?? '+00:00'; // Default to UTC if not set
+        $start = \Carbon\Carbon::parse($day['start_time']);
+        $end = \Carbon\Carbon::parse($day['end_time']);
+        $duration = $start->diffInHours($end);
+    @endphp
+
+    {{ ucfirst($day['day']) }} ({{ \Carbon\Carbon::parse($day['date'])->format('F j, Y') }}):<br>
+    {{ $start->format('g:i A') }} - {{ $end->format('g:i A') }} <br>
+
+    <strong>Duration:</strong>
+    {{ $duration }} {{ Str::plural('hour', $duration) }}
+</td>
+
                         <td>
                             Reserved Spot -<br>
                             {{ $invoice['space_category'] ?? 'N/A' }}

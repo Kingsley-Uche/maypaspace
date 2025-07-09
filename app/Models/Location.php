@@ -32,6 +32,12 @@ class Location extends Model
     {
         return $this->belongsTo(Tenant::class, 'tenant_id');
     }
+// in App\Models\Location
+
+public function timeZone()
+{
+    return $this->hasOne(TimeZoneModel::class, 'location_id', 'id');
+}
 
 
 

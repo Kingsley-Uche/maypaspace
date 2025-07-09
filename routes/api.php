@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\{
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureTenantHasActivePlan;
 use App\Models\TenantLogo;
+use App\Http\Controllers\Api\V1\TimeZoneController;
 
 Route::prefix('system-admin')->middleware('throttle:api')->group(function(){
     Route::post('/login', [SystemAdminAuthController::class, 'login']);
@@ -99,6 +100,14 @@ Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group
     Route::get('/view-details', [TenantLogoController::class,'index']);
 
     Route::middleware(['auth:sanctum', EnsureTenantHasActivePlan::class])->group(function () {
+        
+         Route::get('get/time/zone', [TimeZoneController::class, 'index']);
+         Route::post('/create/time/zone', [TimeZoneController::class, 'create']);       
+         Route::get('show/time/zone/{id}', [TimeZoneController::class, 'show']);       
+         Route::post('update/time/zone/{id}', [TimeZoneController::class, 'update']);   
+         Route::post('destroy/time/zone/{id}', [TimeZoneController::class, 'destroy']); 
+        
+        
         Route::post('/settings/workspace/time/create', [TimeSetUp::class,'store']);
         Route::post('/settings/workspace/time/update', [TimeSetUp::class,'update']);
         Route::post('/settings/workspace/time/delete', [TimeSetUp::class,'destroy']);
