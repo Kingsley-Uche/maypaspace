@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\{BookSpot, Spot, Tenant, User, Space, BookedRef, SpacePaymentModel, TimeSetUpModel, ReservedSpots};
@@ -19,6 +20,43 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\BookingRecieptMail;
 class PaymentController extends Controller
 {
+    //Save tenant Unique paystack Secret key
+    public function saveSecretKey(Request $request, $tenant_slug){
+        $user = $request->user();
+
+        //We identify the tenant using slug
+        $ten = $this->checkTenant($tenant_slug);  
+
+        if((int)$user->user_type_id !== 1){
+            return response()->json(['message' => 'You are not authorized'], 403);
+        }
+
+        //validate request data
+        $validator = Validator::make($request->all(), [
+           'key' => 'required|string|max:255',
+        ]);
+ 
+        if($validator->fails()){
+         return response()->json(['error' => $validator->errors()], 422);
+        }
+ 
+        //retrieve Validated data from the validator instance
+        $validatedData = $validator->validated();
+
+        $tenant = Tenant::where('id', $ten->id)->firstOrFail();
+
+        $tenant->paystack_secret_key = Crypt::encryptString($request->key);
+
+        $response = $tenant->save();
+
+        //If update fails, send response
+        if(!$response){
+            return response()->json(['message'=>'Something went wrong, please try again later'], 422);
+        }
+
+        //If update is successful, send response
+        return response()->json(['message'=> 'Tenant paystack key updated successfully', 'data'=>$tenant], 201);
+    }
     /**
      * Initiate a payment for a booking
      */
@@ -148,7 +186,7 @@ $validated['user_type_id'] = 3;
                 'url' => $paymentData['data']['authorization_url'],
                 'access_code'=>$paymentData['data']['access_code'],
                 'payment_ref' => $reference,
-                'access_code'=>$paymentData['data']['access_code'],
+                // 'access_code'=>$paymentData['data']['access_code'],
                 'message' => 'Booking initialized successfully.'
             ], 200);
         } catch (Exception $e) {
@@ -195,7 +233,7 @@ $validated['user_type_id'] = 3;
 
 
             // Verify payment
-            $paymentInfo = $this->verifyPaymentWithPaystack($validated['reference']);
+            $paymentInfo = $this->verifyPaymentWithPaystack($validated['reference'], $slug);
             
             if (!$paymentInfo || $paymentInfo['status'] !== 'success') {
                 return response()->json([
@@ -713,6 +751,8 @@ $validated['user_type_id'] = 3;
      */
     private function initializePaystackPayment($email, $amount, $slug)
     {
+        $tenant = $this->checkTenant($slug);
+
         $booked = new BookedRef();
         $reference = $booked->generateRef($slug);
 
@@ -727,7 +767,7 @@ $validated['user_type_id'] = 3;
                     'reference' => $reference,
                 ]),
                 CURLOPT_HTTPHEADER => [
-                    "Authorization: Bearer " . env('PAYMENTBEARER'),
+                    "Authorization: Bearer " . Crypt::decryptString($tenant->paystack_secret_key),
                     "Cache-Control: no-cache",
                 ],
                 CURLOPT_RETURNTRANSFER => true,
@@ -750,11 +790,54 @@ $validated['user_type_id'] = 3;
         }
     }
 
+    //initialize tenant Old
+    //     private function initializePaystackPayment($email, $amount, $slug)
+    // {
+        
+    //     $booked = new BookedRef();
+    //     $reference = $booked->generateRef($slug);
+
+    //     $ch = curl_init();
+    //     try {
+    //         curl_setopt_array($ch, [
+    //             CURLOPT_URL => "https://api.paystack.co/transaction/initialize",
+    //             CURLOPT_POST => true,
+    //             CURLOPT_POSTFIELDS => http_build_query([
+    //                 'email' => $email,
+    //                 'amount' => $amount * 100, // Convert to kobo
+    //                 'reference' => $reference,
+    //             ]),
+    //             CURLOPT_HTTPHEADER => [
+    //                 "Authorization: Bearer " . env('PAYMENTBEARER'),
+    //                 "Cache-Control: no-cache",
+    //             ],
+    //             CURLOPT_RETURNTRANSFER => true,
+    //             CURLOPT_TIMEOUT => 30,
+    //         ]);
+
+    //         $result = curl_exec($ch);
+    //         if (curl_errno($ch)) {
+    //             throw new Exception('cURL error: ' . curl_error($ch));
+    //         }
+
+    //         $response = json_decode($result, true);
+    //         if (!$response || $response['status'] !== true) {
+    //             throw new Exception('Paystack initialization failed: ' . ($response['message'] ?? 'Unknown error'));
+    //         }
+
+    //         return $response;
+    //     } finally {
+    //         curl_close($ch);
+    //     }
+    // }
+
     /**
      * Verify payment with Paystack
      */
-    private function verifyPaymentWithPaystack(string $reference): ?array
+    private function verifyPaymentWithPaystack(string $reference, $slug): ?array
     {
+        $tenant = $this->checkTenant($slug);
+
         $ch = curl_init();
         try {
             curl_setopt_array($ch, [
@@ -764,7 +847,7 @@ $validated['user_type_id'] = 3;
                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
                 CURLOPT_CUSTOMREQUEST => "GET",
                 CURLOPT_HTTPHEADER => [
-                    "Authorization: Bearer " . env('PAYMENTBEARER'),
+                    "Authorization: Bearer " . Crypt::decryptString($tenant->paystack_secret_key),
                     "Cache-Control: no-cache",
                 ],
             ]);
@@ -788,6 +871,42 @@ $validated['user_type_id'] = 3;
         }
     }
 
+    //Verify payment with paystack old
+    //     private function verifyPaymentWithPaystack(string $reference): ?array
+    // {
+    //     $ch = curl_init();
+    //     try {
+    //         curl_setopt_array($ch, [
+    //             CURLOPT_URL => "https://api.paystack.co/transaction/verify/{$reference}",
+    //             CURLOPT_RETURNTRANSFER => true,
+    //             CURLOPT_TIMEOUT => 10,
+    //             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+    //             CURLOPT_CUSTOMREQUEST => "GET",
+    //             CURLOPT_HTTPHEADER => [
+    //                 "Authorization: Bearer " . env('PAYMENTBEARER'),
+    //                 "Cache-Control: no-cache",
+    //             ],
+    //         ]);
+
+    //         $response = curl_exec($ch);
+    //         if (curl_errno($ch)) {
+    //             throw new Exception('cURL error: ' . curl_error($ch));
+    //         }
+
+    //         $result = json_decode($response, true);
+    //         if (!$result || $result['status'] !== true) {
+    //             throw new Exception('Paystack verification failed: ' . ($result['message'] ?? 'Unknown error'));
+    //         }
+
+    //         return $result['data'];
+    //     } catch (Exception $e) {
+    //         Log::error("Paystack verification failed: " . $e->getMessage(), ['exception' => $e]);
+    //         return null;
+    //     } finally {
+    //         curl_close($ch);
+    //     }
+    // }
+
     /**
      * Register payment
      */
@@ -803,29 +922,40 @@ $validated['user_type_id'] = 3;
             'payment_method' => 'prepaid',
         ]);
     }
-private function generateSchedule(array $chosenDays, Carbon $expiryDate): array
-{
-    $schedule = [];
+    private function generateSchedule(array $chosenDays, Carbon $expiryDate): array
+    {
+        $schedule = [];
 
-    foreach ($chosenDays as $day) {
-        $weekday = strtolower($day['day']);
-        $startTime = Carbon::parse($day['start_time'])->format('H:i:s');
-        $endTime = Carbon::parse($day['end_time'])->format('H:i:s');
-        $current = Carbon::parse($day['start_time'])->copy();
+        foreach ($chosenDays as $day) {
+            $weekday = strtolower($day['day']);
+            $startTime = Carbon::parse($day['start_time'])->format('H:i:s');
+            $endTime = Carbon::parse($day['end_time'])->format('H:i:s');
+            $current = Carbon::parse($day['start_time'])->copy();
 
-        while ($current->lte($expiryDate)) {
-            $schedule[] = [
-                'day' => $weekday,
-                'date' => $current->toDateString(),
-                'start_time' => $current->format('Y-m-d H:i:s'),
-                'end_time' => $current->copy()->setTimeFromTimeString($endTime)->format('Y-m-d H:i:s'),
-            ];
+            while ($current->lte($expiryDate)) {
+                $schedule[] = [
+                    'day' => $weekday,
+                    'date' => $current->toDateString(),
+                    'start_time' => $current->format('Y-m-d H:i:s'),
+                    'end_time' => $current->copy()->setTimeFromTimeString($endTime)->format('Y-m-d H:i:s'),
+                ];
 
-            $current->addWeek();
+                $current->addWeek();
+            }
         }
+
+        usort($schedule, fn($a, $b) => strtotime($a['start_time']) <=> strtotime($b['start_time']));
+        return $schedule;
     }
 
-    usort($schedule, fn($a, $b) => strtotime($a['start_time']) <=> strtotime($b['start_time']));
-    return $schedule;
-}
+    private function checkTenant($tenant_slug){
+        $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+        if (!$tenant) {
+            return response()->json(['message' => 'Tenant not found'], 404);
+        }
+
+        return $tenant;
+
+    }
 }

@@ -6,7 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Tenant extends Model
 {
-    protected $fillable = ['company_name', 'slug', 'created_by', 'subscription_id', 'created_by_admin_id', 'company_no_location', 'company_countries'];
+    protected $fillable = ['company_name', 'slug', 'created_by', 'subscription_id', 'created_by_admin_id', 'company_no_location', 'company_countries', 'paystack_secret_key'];
+
+    protected $hidden = [
+        'paystack_secret_key',
+    ];
 
     public function users()
     {

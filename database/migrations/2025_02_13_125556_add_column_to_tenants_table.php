@@ -16,9 +16,10 @@ return new class extends Migration
             $table->string('company_no_location')->after('slug');
             $table->unsignedBigInteger('created_by_admin_id')->default(null)->after('slug')->nullable();
             $table->unsignedBigInteger('subscription_id')->default(null)->after('slug')->nullable();
+            $table->text('paystack_secret_key')->default(null)->after('slug')->nullable();
 
             $table->foreign('created_by_admin_id')->references('id')->on('admins');
-            $table->foreign('subscription_id')->references('id')->on('subscriptions');
+            $table->foreign('subscription_id')->references('id')->on('subscriptions')->onDelete('set null');
         });
     }
 
@@ -30,7 +31,7 @@ return new class extends Migration
         Schema::table('tenants', function (Blueprint $table) {
             $table->dropForeign(['created_by_admin_id']);
             $table->dropForeign(['subscription_id']);
-
+                                   
              // Drop the column
             $table->dropColumn('company_countries');
             $table->dropColumn('company_no_location');

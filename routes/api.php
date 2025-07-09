@@ -112,6 +112,9 @@ Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
         Route::get('/spot/single', [BookSpotController::class, 'getSingle']);  
         Route::post('/logout', [UserAuthController::class, 'logout']);
 
+        //save paystack secret key
+        Route::post('/savepaystackkey', [PaymentController::class,'saveSecretKey']);
+
         Route::post('/add-user', [UserFunctionsController::class, 'addUser']);
         Route::post('/update-user/{id}', [UserFunctionsController::class, 'updateUser']);
         Route::get('/view-users', [UserFunctionsController::class, 'viewUsers']);

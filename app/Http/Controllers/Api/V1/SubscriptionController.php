@@ -129,7 +129,7 @@ class SubscriptionController extends Controller
        // Validate request data
        $validator = Validator::make($request->all(), [
         'name' => 'required|string|max:255|unique:plans,name',
-        'price' => 'required|numeric|gte:1',
+        'price' => 'required|numeric|gte:0',
         'num_of_locations' => 'required|numeric|gte:0',
         'num_of_users' => 'required|numeric|gte:0',
        ]); 
@@ -214,7 +214,7 @@ class SubscriptionController extends Controller
             return response()->json(['message'=> 'Failed to delete, try again later'], 500);
         }
 
-        return response()->json(['message'=> 'Plan deleted successfully'],204);
+        return response()->json(['message'=> 'Plan deleted successfully'],202);
     }
 
     public function viewPlans(){

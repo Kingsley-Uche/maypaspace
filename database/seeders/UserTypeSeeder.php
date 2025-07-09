@@ -77,7 +77,7 @@ class UserTypeSeeder extends Seeder
             ],
 
             [
-                'user_type' => 'Client',
+                'user_type' => 'User',
                 'created_by_user_id' => null,
                 'create_admin'=> 'no',
                 'update_admin'=> 'no',
