@@ -71,7 +71,7 @@ class UserFunctionsController extends Controller
             return response()->json(['message'=> 'You cannot create an owner'], 403);
         }
 
-        if($validatedData['user_type_id'] == 2 && $validatedData['user_type_id'] != 1 && $validatedData['user_type_id'] != 3){
+        if($validatedData['user_type_id'] != 1 && $validatedData['user_type_id'] != 3){
 
             if($userType[0]['user_type']['create_admin'] !== 'yes' || $tenant->id != $user->tenant_id){
                 return response()->json(['message'=> 'You are not authorized'], 403);
@@ -363,19 +363,34 @@ class UserFunctionsController extends Controller
         return ["response" => $response, "user"=>$user];
 
     }
-    public function create_visitor_user($data,$tenant){
-        $tenantUsers = User::where('tenant_id', $tenant->id)->get();
 
-        $tenantUsers = count($tenantUsers);
-        $planUsers = $tenant->subscription?->plan->num_of_users;
+   public function create_visitor_user($data, $tenant)
+{
+    // Count existing users for the tenant
+    $tenantUsers = User::where('tenant_id', $tenant->id)->count();
 
-        if($tenantUsers >= $planUsers){
-            return response()->json(['message'=> 'User capacity reached'], 422);
-        }
-        $data['user_type_id'] = 3;
-        
-        $user =$this->completeCreate($data, $tenant);
-        return $user['user'];
+    // Get the tenant with subscription and plan data
+    $tenant_user = Tenant::with([
+        'subscription:id,plan_id,tenant_id',
+        'subscription.plan:id,num_of_users'
+    ])->where('id', $tenant->id)->first();
+
+    // Safely get the number of allowed users in the plan
+    $planUsers = $tenant_user->subscription?->plan->num_of_users ?? 0;
+
+    // Check if user limit has been reached
+    if ($tenantUsers >= $planUsers) {
+        return ['error' => 'user capacity reached'];
     }
+
+    // Set user type for visitor
+    $data['user_type_id'] = 3;
+
+    // Create the user
+    $user = $this->completeCreate($data, $tenant);
+
+    // Return only the created user
+    return $user['user'];
+}
 
 }

@@ -68,9 +68,12 @@ if (!$tenant) {
         $invoiceUser = User::select('first_name', 'last_name', 'email')->find($validated['user_id']);
 
         $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
+        
+        
         $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
 
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
+        
         if ($tenantAvailability->isEmpty()) {
             return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
         }
@@ -306,6 +309,7 @@ private function normalizeChosenDays(array $days)
 }
 
 
+
 private function calculateExpiryDate($type, $chosenDays, $validated)
 {
     $lastDay = $type === 'recurrent' ? $chosenDays->first() : $chosenDays->last();
@@ -343,17 +347,31 @@ private function areAllDaysAvailable($chosenDays, $availability)
 private function areChosenTimesValid($chosenDays, $availability)
 {
     $availableDays = $availability->keyBy(fn($item) => strtolower($item->day));
+    
+
     foreach ($chosenDays as $day) {
-        $open = Carbon::parse($availableDays[$day['day']]->open_time)->format('H:i:s');
-        $close = Carbon::parse($availableDays[$day['day']]->close_time)->format('H:i:s');
-        $day['start_time'] = Carbon::parse($day['start_time'])->format('H:i:s');
-        $day['end_time'] = Carbon::parse($day['end_time'])->format('H:i:s');
-        if ($day['start_time']<($open) || $day['end_time']>($close)) {
+        $dayKey = strtolower($day['day']);
+
+        if (!isset($availableDays[$dayKey])) return false;
+
+        // Parse availability times in UTC and extract time only
+        $open = Carbon::parse($availableDays[$dayKey]->open_time, 'UTC')->format('H:i');
+        $close = Carbon::parse($availableDays[$dayKey]->close_time, 'UTC')->format('H:i');
+
+    
+        $start = Carbon::parse($day['start_time'],)->setTimezone('UTC')->format('H:i');
+        $end = Carbon::parse($day['end_time'],)->setTimezone('UTC')->format('H:i');
+        
+
+        if ($start < $open || $end > $close) {
             return false;
         }
     }
+
     return true;
 }
+
+
 
 private function hasConflicts($spotId, $chosenDays)
 {
@@ -939,6 +957,7 @@ public function update(Request $request, $slug)
                     'location_name' => $spot->location->name ?? 'Unknown',
                     'floor_name' => $spot->floor->name ?? 'Unknown',
                     'floor_id' => $spot->floor_id,
+                    'booking_type'=>$spot->space->category->booking_type,
                 ];
             }
         });
@@ -968,7 +987,7 @@ public function update(Request $request, $slug)
         ->with([
             'location:id,name',
             'space:id,space_name,space_fee,space_category_id',
-            'space.category:id,category',
+            'space.category:id,category,booking_type',
             'floor:id,name',
             'bookedspots:id,spot_id,chosen_days,expiry_day', // Added this line
         ])
@@ -1022,6 +1041,7 @@ public function update(Request $request, $slug)
                     'floor_name' => $spot->floor->name ?? null,
                     'booked_times' => $bookedTimes,
                     'book_spot_id' => $spot->bookedSpots->first()->id ?? null,
+                    'booking_type'=>$spot->space->category->booking_type,
                 ];
             }
         });
@@ -1170,7 +1190,8 @@ public function getFreeSpotsCateg(Request $request, $tenant_slug, $location_id =
             'location:id,name',
             'floor:id,name',
             'space:id,space_name,space_fee,space_category_id',
-            'space.category:id,category,book_time',
+             'space.category:id,category,booking_type',
+            'space.category.images:id,image_path,category_id',
         ])
         ->join('spaces', 'spots.space_id', '=', 'spaces.id')
         ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
@@ -1183,22 +1204,50 @@ public function getFreeSpotsCateg(Request $request, $tenant_slug, $location_id =
     }
 
     // Chunked processing to optimize memory
-    $query->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
-        foreach ($freeSpots as $spot) {
-            $categoryName = $spot->space->category->category ?? 'Uncategorized';
-            $spotsByCategory[$categoryName][] = [
-                'spot_id' => $spot->id,
-                'space_name' => $spot->space->space_name,
-                'space_category_id'=>$spot->space->space_category_id,
-                'space_fee' => $spot->space->space_fee,
-                'location_id' => $spot->location_id,
-                'location_name' => $spot->location->name ?? 'Unknown',
-                'floor_name' => $spot->floor->name ?? 'Unknown',
-                'floor_id' => $spot->floor_id,
-                'book_time' => $spot->space->category->book_time ?? 'Unknown',
-            ];
-        }
-    });
+    // $query->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
+    //     foreach ($freeSpots as $spot) {
+    //         $categoryName = $spot->space->category->category ?? 'Uncategorized';
+    //         $spotsByCategory[$categoryName][] = [
+    //             'spot_id' => $spot->id,
+    //             'space_name' => $spot->space->space_name,
+    //             'space_category_id'=>$spot->space->space_category_id,
+    //             'space_fee' => $spot->space->space_fee,
+    //             'location_id' => $spot->location_id,
+    //             'location_name' => $spot->location->name ?? 'Unknown',
+    //             'floor_name' => $spot->floor->name ?? 'Unknown',
+    //             'floor_id' => $spot->floor_id,
+    //             'book_type' => $spot->space->category->booking_type ?? 'Unknown',
+    //         ];
+    //     }
+    // });
+     $query->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
+            foreach ($freeSpots as $spot) {
+                $category = $spot->space->category ?? null;
+                $categoryName = $category?->category ?? 'Uncategorized';
+
+                if (!isset($spotsByCategory[$categoryName])) {
+                    $spotsByCategory[$categoryName] = [
+                        'category_id' => $category->id ?? null,
+                        'category_name' => $categoryName,
+                        'booking_type' => $category->booking_type ?? 'Unknown',
+                        'images' => $category?->images->pluck('image_path')->toArray() ?? [],
+                        'spots' => [],
+                    ];
+                }
+
+                $spotsByCategory[$categoryName]['spots'][] = [
+                    'spot_id' => $spot->id,
+                    'space_name' => $spot->space->space_name,
+                    'space_fee' => $spot->space->space_fee,
+                    'location_id' => $spot->location_id,
+                    'location_name' => $spot->location->name ?? 'Unknown',
+                    'floor_name' => $spot->floor->name ?? 'Unknown',
+                    'floor_id' => $spot->floor_id,
+                ];
+            }
+        });
+
+    return response()->json(['data' => array_values($spotsByCategory)], 200);
 
     return response()->json(['data' => $spotsByCategory], 200);
 }

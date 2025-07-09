@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use App\Models\{BookSpot, Spot, Tenant, User, Space, BookedRef, SpacePaymentModel, TimeSetUpModel, ReservedSpots};
+use App\Models\{BookSpot, Spot,InvoiceModel,Tenant, User, Space, BookedRef, SpacePaymentModel, TimeSetUpModel, ReservedSpots};
 use App\Http\Controllers\Api\V1\UserFunctionsController as UserContrl;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use Carbon\Carbon;
@@ -63,10 +63,14 @@ class PaymentController extends Controller
     public function initiatePay(Request $request, $slug)
     {
         DB::beginTransaction();
-        try {
+     try {
             //Validate input
             $validated = $this->validateBookingRequest($request);
-            
+           $user_email_phone = User::where('phone', $validated['phone'])->orWhere('email', $validated['email'])->first();
+
+    if ($user_email_phone) {
+        return response()->json(['message' => 'Email or phone already taken'], 422);
+    }
 
             // Early validation for one-off vs recurrent
             if ($validated['type'] === 'one-off' && ($validated['number_weeks'] || $validated['number_months'])) {
@@ -141,7 +145,7 @@ class PaymentController extends Controller
                 $amount += $taxAmount;
                 $taxData[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
             }
-$validated['user_type_id'] = 3;
+            $validated['user_type_id'] = 3;
             // Create user
             $userController = new UserContrl();
             $user = $userController->create_visitor_user($validated, (object)[
@@ -149,6 +153,11 @@ $validated['user_type_id'] = 3;
                 'spot_id' => $tenant->id,
                 'slug' => $slug,
             ]);
+            
+           if (isset($user['error'])) {
+    return response()->json(['message' => $user['error']],422);
+}
+
 
             // Initialize Paystack payment
             $paymentData = $this->initializePaystackPayment($user->email, $amount, $slug);
@@ -189,15 +198,15 @@ $validated['user_type_id'] = 3;
                 // 'access_code'=>$paymentData['data']['access_code'],
                 'message' => 'Booking initialized successfully.'
             ], 200);
-        } catch (Exception $e) {
+     } catch (Exception $e) {
             DB::rollBack();
             Log::error('Payment initiation failed: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json([
                 'error' => 'internal_error',
                 'message' => 'An unexpected error occurred: ' . $e->getMessage()
             ], 500);
-        }
-    }
+       }
+   }
 
     /**
      * Confirm a payment and finalize booking
@@ -326,15 +335,8 @@ $validated['user_type_id'] = 3;
             })->toArray();
             ReservedSpots::insert($reservedSpotsData);
 
-            // Update payment status
-            $updated = SpacePaymentModel::where('payment_ref', $paymentInfo['reference'])->update([
-                'amount' => $paymentInfo['amount'] / 100,
-                'payment_status' => 'completed',
-            ]);
-
-            if ($updated === 0) {
-                throw new Exception('Payment record not found or already updated');
-            }
+           
+           
         $invoiceController = new InvoiceController();
         $invoiceResponse = $invoiceController->create([
             'user_id' => $validated['user_id'],
@@ -346,7 +348,22 @@ $validated['user_type_id'] = 3;
 
          $invoiceRef = $invoiceResponse['invoice']['invoice_ref'];
         $bookSpot->update(['invoice_ref' => $invoiceRef]);
-        SpacePaymentModel::where('payment_ref', $validated['reference'])->update(['invoice_ref' => $invoiceRef]);
+         // Update payment status
+       $updated = SpacePaymentModel::where('payment_ref', $validated['reference'])->first();
+
+if (!$updated) {
+    throw new Exception('Payment record not found or already updated');
+} else {
+    $updated->update([
+        'invoice_ref' => $invoiceRef,
+        'amount' => $paymentInfo['amount'] / 100,
+        'payment_status' => 'completed'
+    ]);
+}
+
+        
+            $invoice_model = InvoiceModel::where('invoice_ref',$validated['reference'])->update(['status'=>'paid']);
+
         $chosenDays = json_decode($bookSpot->chosen_days, true);
         // Generate Schedule
         $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay));
@@ -394,11 +411,9 @@ $validated['user_type_id'] = 3;
             'company_name' => 'required|string|max:255',
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
+            'email' => 'required|email|max:255',
             'phone' => [
-                'required',
-                'unique:users,phone',
-                'regex:/^([0-9\s\-\+\(\)]*)$/',
+                'required','regex:/^([0-9\s\-\+\(\)]*)$/',
                 'max:20'
             ],
             'type' => 'required|in:one-off,recurrent',

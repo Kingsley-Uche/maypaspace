@@ -32,7 +32,7 @@ use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureTenantHasActivePlan;
 use App\Models\TenantLogo;
 
-Route::prefix('system-admin')->group(function(){
+Route::prefix('system-admin')->middleware('throttle:api')->group(function(){
     Route::post('/login', [SystemAdminAuthController::class, 'login']);
 
     Route::post('/confirm-user', [SystemAdminAuthController::class,'sendOtp']);
@@ -82,7 +82,7 @@ Route::prefix('system-admin')->group(function(){
     });
 });
 
-Route::prefix('{tenant_slug}')->middleware('settenant')->group(function(){
+Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group(function(){
     Route::post('/get/name',  [UserAuthController::class,'getName']);
     Route::post('/login', [UserAuthController::class,'login']);
     Route::post('/confirm-user', [UserAuthController::class,'sendOtp']);
