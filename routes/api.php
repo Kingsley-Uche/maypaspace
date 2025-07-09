@@ -84,9 +84,6 @@ Route::prefix('system-admin')->middleware('throttle:api')->group(function(){
 });
 
 Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group(function(){
-    
-   
-    
     Route::post('/get/name',  [UserAuthController::class,'getName']);
     Route::post('/login', [UserAuthController::class,'login']);
     Route::post('/confirm-user', [UserAuthController::class,'sendOtp']);
