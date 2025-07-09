@@ -18,7 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('subscription_id')->default(null)->after('slug')->nullable();
 
             $table->foreign('created_by_admin_id')->references('id')->on('admins');
-            $table->foreign('subscription_id')->references('id')->on('subscriptions');
+            $table->foreign('subscription_id')->references('id')->on('subscriptions')->onDelete('set null');
         });
     }
 

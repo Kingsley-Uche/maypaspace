@@ -14,7 +14,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('spaces', function (Blueprint $table) {
-            $table->decimal('space_fee')->nullable()->after('floor_id');
+          $table->decimal('space_fee', 15, 2)->nullable()->after('floor_id');
             $table->unsignedBigInteger('min_space_discount_time')->nullable()->after('space_fee');
             $table->unsignedBigInteger('space_discount')->nullable()->after('min_space_discount_time');
             $table->unsignedBigInteger('space_category_id')->nullable()->after('space_discount');

@@ -110,33 +110,31 @@ class SpaceController extends Controller
             ->where('tenant_id', $tenant->id)
             ->firstOrFail();
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'space_number' => 'required|numeric|gte:1',
-            'location_id' => 'required|numeric|gte:1',
-            'floor_id' => 'required|numeric|gte:1',
-            'space_fee' => 'required|decimal:2',
-            'space_category_id' => 'required|numeric|gte:1',
-            'min_space_discount_time' => 'required|numeric|gte:1',
-            'space_discount' => 'required|numeric|gte:1',
-        ]);
+      $validator = Validator::make($request->all(), [
+    'name' => 'sometimes|required|string|max:255',
+    'location_id' => 'sometimes|required|numeric|gte:1',
+    'floor_id' => 'sometimes|required|numeric|gte:1',
+    'space_fee' => 'sometimes|required',
+    'space_category_id' => 'sometimes|required|numeric|gte:1',
+    'min_space_discount_time' => 'sometimes|nullable|numeric|gte:1',
+    'space_discount' => 'sometimes|nullable|numeric|gte:1',
+]);
 
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 422);
-        }
+if ($validator->fails()) {
+    return response()->json(['error' => $validator->errors()], 422);
+}
 
-        $data = $validator->validated();
+$data = $validator->validated();
 
-        $space->update([
-            'space_name' => htmlspecialchars($data['name'], ENT_QUOTES, 'UTF-8'),
-            'space_number' => $data['space_number'],
-            'location_id' => $data['location_id'],
-            'floor_id' => $data['floor_id'],
-            'space_category_id' => $data['space_category_id'],
-            'space_fee' => $data['space_fee'],
-            'min_space_discount_time' => $data['min_space_discount_time'],
-            'space_discount' => $data['space_discount'],
-        ]);
+// Preprocess if necessary
+if (isset($data['name'])) {
+    $data['space_name'] = htmlspecialchars($data['name'], ENT_QUOTES, 'UTF-8');
+    unset($data['name']);
+}
+
+// Now update only the fields present in $data
+$space->update($data);
+
 
         return response()->json(['message' => 'Space updated successfully', 'space' => $space], 200);
     }
@@ -147,7 +145,7 @@ class SpaceController extends Controller
         $tenant = $this->checkTenant($tenant_slug, $user);
 
         $spaces = Space::with(['location', 'floor', 'category'])
-            ->where('tenant_id', $tenant->id)->where('deleted', 'no')
+            ->where('tenant_id', $tenant->id)->where('deleted_at', null)
             ->get();
 
         return response()->json($spaces, 200);
@@ -191,18 +189,15 @@ class SpaceController extends Controller
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
-        $validator = Validator::make($request->all(), [
-            'space_number' => 'required|numeric|gte:1',
-            'location_id' => 'required|numeric|gte:1',
-        ]);
+       $validator = Validator::make($request->all(), [
+    'id' => 'required|numeric|exists:spaces,id',]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+if ($validator->fails()) {
+    return response()->json(['errors' => $validator->errors()], 422);
+}
 
-        $space = Space::where('space_name', $request->name)
-            ->where('location_id', $request->location_id)
-            ->where('floor_id', $request->floor_id)
+
+        $space = Space::where('id', $request->id)
             ->firstOrFail();
 
         $space->deleted = "yes";

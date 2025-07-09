@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Api\V1\TimeZoneController as TimeZone;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Category;
@@ -23,6 +24,8 @@ public function create(Request $request, $tenant_slug)
     if ($user->tenant_id != $tenant->id || !in_array($user->user_type_id, [1, 2])) {
         return response()->json(['message' => 'You are not authorized'], 403);
     }
+    
+    
 
   $validator = Validator::make($request->all(), [
     'category' => 'required|string|max:255',
@@ -39,6 +42,16 @@ public function create(Request $request, $tenant_slug)
     }
 
     $validated = $validator->validated();
+    
+     $timezone_status = new TimeZone();
+            $timezoneCheck = $timezone_status->time_zone_status([
+                'location_id' => $tenant->location_id,
+                'tenant_id' => $tenant->id,
+            ]);
+
+            if (!$timezoneCheck) {
+                return response()->json(['message' => 'Kindly set up your timezone'], 422);
+            }
 
     // Check duplicate
     $exists = Category::where('category', $validated['category'])
@@ -103,6 +116,16 @@ public function create(Request $request, $tenant_slug)
     }
 
     $validated = $validator->validated();
+         $timezone_status = new TimeZone();
+            $timezoneCheck = $timezone_status->time_zone_status([
+                'location_id' => $tenant->location_id,
+                'tenant_id' => $tenant->id,
+            ]);
+
+            if (!$timezoneCheck) {
+                return response()->json(['message' => 'Kindly set up your timezone'], 422);
+            }
+    
 
     $category = Category::findOrFail($id);
 
