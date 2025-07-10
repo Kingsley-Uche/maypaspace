@@ -24,6 +24,12 @@ class AnalyticsController extends Controller
         $startTimeB = $request->query('startTimeB');
         $endTimeB = $request->query('endTimeB');
 
+        // $startTimeB = '2025-07-01';
+        // $endTimeB = '2025-07-28';
+
+        // $filterStartDate = Carbon::parse($startTimeB)->timezone('+01:00');
+        // $filterEndDate = Carbon::parse($endTimeB)->timezone('+01:00');
+
         $days = $request->query('days');
         
         $categoryId = $request->query('categoryId');
@@ -54,6 +60,7 @@ class AnalyticsController extends Controller
 
            $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, $tenant->id);
         }
+
 
         $summedDataA = $this->loopResults($resultsA, $filterStartDateA, $filterEndDateA, $days);
 

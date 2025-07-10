@@ -342,6 +342,7 @@ class UserFunctionsController extends Controller
         $messageContent['firstName'] = $user->first_name;
         $messageContent['password'] = $password;
         $messageContent['slug'] = $tenant->slug;
+        // $messageContent['tenant'] = $tenant->company_name;
 
         // Send email verification link
         $response = $this->sendRegistrationEmail($messageContent);

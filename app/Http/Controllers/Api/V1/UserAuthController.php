@@ -109,6 +109,7 @@ class UserAuthController extends Controller
                 $messageContent = [];
                 $messageContent['otp'] = $otp;
                 $messageContent['firstName'] = $user->first_name;
+                $messageContent['tenant'] = $tenant->company_name;
 
 
                 // Send OTP via email
