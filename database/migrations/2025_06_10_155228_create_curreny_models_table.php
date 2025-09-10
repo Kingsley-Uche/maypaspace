@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('curreny_models', function (Blueprint $table) {
             $table->id();
+            $table->string('name');
+            $table->string('symbol');
+                $table->foreignId('location_id')->constrained()->onDelete('cascade');
+            $table->foreignId('tenant_id')->constrained()->onDelete('cascade');
             $table->timestamps();
         });
     }

@@ -58,7 +58,7 @@ class SpaceController extends Controller
 
         $verifyName = Space::where('space_name', $validated['name'])
             ->where('location_id', $validated['location_id'])
-            ->where('floor_id', $validated['floor_id'])
+            ->where('floor_id', $validated['floor_id'])->where('deleted_at',null)
             ->first();
 
         if ($verifyName) {
@@ -110,7 +110,7 @@ class SpaceController extends Controller
             ->where('tenant_id', $tenant->id)
             ->firstOrFail();
 
-      $validator = Validator::make($request->all(), [
+     $validator = Validator::make($request->all(), [
     'name' => 'sometimes|required|string|max:255',
     'location_id' => 'sometimes|required|numeric|gte:1',
     'floor_id' => 'sometimes|required|numeric|gte:1',
@@ -144,7 +144,7 @@ $space->update($data);
         $user = $request->user();
         $tenant = $this->checkTenant($tenant_slug, $user);
 
-        $spaces = Space::with(['location', 'floor', 'category'])
+        $spaces = Space::with(['location', 'floor', 'category', 'charges:id,tenant_id,space_id,is_fixed,value'])
             ->where('tenant_id', $tenant->id)->where('deleted_at', null)
             ->get();
 
@@ -167,6 +167,7 @@ $space->update($data);
                 'createdBy:id,first_name,last_name',
                 'deletedBy:id,first_name,last_name',
                 'spots',
+                'charges:id,tenant_id,space_id,is_fixed,value'
             ])
             ->firstOrFail();
 
@@ -197,16 +198,16 @@ if ($validator->fails()) {
 }
 
 
-        $space = Space::where('id', $request->id)
-            ->firstOrFail();
+        // $space = Space::where('id', $request->id)
+        //     ->firstOrFail();
 
-        $space->deleted = "yes";
-        $space->deleted_by_user_id = $user->id;
-        $space->deleted_at = now();
+        // $space->deleted = "yes";
+        // $space->deleted_by_user_id = $user->id;
+        // $space->deleted_at = now();
+        // $response = $space->save();
+        
 
-        $response = $space->save();
-
-        Spot::where('space_id', $space->id)->delete();
+        // Spot::where('space_id', $space->id)->delete();
 
         if (!$response) {
             return response()->json(['message' => 'Failed to delete, try again'], 422);
@@ -229,4 +230,19 @@ if ($validator->fails()) {
 
         return $tenant;
     }
+   public function get_by_floor(Request $request, $tenant_slug, $location_id, $floor_id)
+{
+    $user = $request->user();
+    $tenant = $this->checkTenant($tenant_slug, $user);
+
+    $spaces = Space::with(['location','floor','category','charges:id,tenant_id,space_id,is_fixed,value'])
+        ->where('floor_id', $floor_id)
+        ->where('location_id', $location_id)
+        ->where('tenant_id', $tenant->id)
+        ->whereNull('deleted_at')
+        ->get();
+
+    return response()->json($spaces, 200);
+}
+
 }

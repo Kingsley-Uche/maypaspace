@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\InvoiceModel;
+use App\Models\TaxModel;
 use App\Models\User;
 use App\Models\Spot;
 use App\Models\Tenant;
+use App\Models\Charge;
 use App\Models\SpacePaymentModel;
 use Carbon\Carbon;
 
@@ -50,34 +52,48 @@ class InvoiceController extends Controller
     ];
 }
 
-    // READ ALL
-    public function index($slug)
-    {
-        $tenant = Tenant::where('slug', $slug)->first();
 
-        if (!$tenant) {
-            return response()->json(['message' => 'Tenant not found'], 404);
-        }
+  
+public function index($slug)
+{
+    
+    $tenant = Tenant::where('slug', $slug)->select('id')->first();
 
-        $invoices = InvoiceModel::with([
-                'bookSpot:id,id,user_id,start_time,invoice_ref,fee',
-                'user:id,id,first_name,last_name',
-                'spacePayment:invoice_ref,amount,payment_status,created_at'
-            ])
-            ->where('tenant_id', $tenant->id)
-            ->whereNotNull('invoice_ref')
-            ->select('id', 'book_spot_id', 'user_id', 'invoice_ref', 'tenant_id')
-            ->get();
-
-        if ($invoices->isEmpty()) {
-            return response()->json(['message' => 'No invoices found'], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'invoices' => $invoices,
-        ]);
+    if (!$tenant) {
+        return response()->json(['success' => false, 'message' => 'Tenant not found'], 404);
     }
+
+$invoices = InvoiceModel::with([
+    'bookSpot:id,spot_id,user_id,start_time,invoice_ref,fee',
+    'bookSpot.spot:id,location_id',
+    'user:id,first_name,last_name',
+    'spacePayment:invoice_ref,amount,payment_status,created_at'
+])
+->where('tenant_id', $tenant->id)
+->whereNotNull('invoice_ref')
+->select('id','book_spot_id', 'user_id', 'invoice_ref', 'tenant_id')
+->get();
+
+
+
+    if ($invoices->isEmpty()) {
+        return response()->json(['success' => false, 'message' => 'No invoices found'], 404);
+    }
+    
+
+    //Add location_id directly from eager-loaded relation (no extra queries)
+   $invoices->transform(function ($invoice) {
+    $invoice->location_id = $invoice->bookSpot->spot->location_id ?? 'n/a';
+    return $invoice;
+});
+
+    return response()->json([
+        'success' => true,
+        'invoices' => $invoices,
+    ]);
+}
+
+
 
     // READ SINGLE
 public function show(Request $request, $slug, $id)
@@ -91,24 +107,79 @@ public function show(Request $request, $slug, $id)
 
     $invoice = InvoiceModel::with([
         'bookSpot:id,spot_id,user_id,start_time,invoice_ref,fee,chosen_days,expiry_day',
-        'user:id,first_name,last_name'
+        'user:id,first_name,last_name',
+        'bookSpot.spot:id,space_id,location_id,floor_id'
     ])->find($id);
 
     if (!$invoice) {
         return response()->json(['error' => 'Invoice not found'], 404);
     }
+    $bookSpot = optional($invoice->bookSpot);
 
-    $spot = optional($invoice->bookSpot);
-     $space_info = $this->getTenantFromSpot( $spot->id);
-    $locationId = $spot ? Spot::where('id', $spot->spot_id)->value('location_id') : null;
+    // ///dd($bookSpot->spot_id,);
+   $space_info = Spot::select(
+        'spots.id as spot_id',
+        'spots.book_status',
+        'spots.space_id',
+        'spots.location_id',
+        'spots.floor_id',
+        'spots.tenant_id',
+        'spaces.space_name',
+        'spaces.id as space_id',
+        'spaces.space_fee',
+        'floors.name as floor_name',
+        'categories.category as category_name',
+        'locations.id as location_id',
+        'locations.name as location_name'
+    )
+    ->join('spaces', 'spaces.id', '=', 'spots.space_id')
+    ->join('locations', 'locations.id', '=', 'spaces.location_id')
+    ->join('categories','categories.id','=','spaces.space_category_id')
+    ->join('floors','floors.id', '=','spaces.floor_id')
+    ->where('spots.id', $bookSpot->spot_id)
+    ->first();
+
+    
+    
+    
+    $locationId =  $space_info['location_id'];
+    $amount_booked = $space_info['space_fee'];
 
     $bank = $tenant->bankAccounts
         ->where('tenant_id', $tenant->id)
         ->where('location_id', $locationId)
         ->first();
+     
+       $payment_listing = [];
+        
+foreach (TaxModel::where('tenant_id', $tenant->tenant_id)->get() as $tax) {
+    $taxAmount = $amount_booked * ($tax->percentage / 100);
+    $amount += $taxAmount;
+    $tax_data[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
+     $payment_listing[] = [
+        'name' => $tax->name,
+        'fee'  => $taxAmount,
+    ];
+}
+        
+        $charge_data = []; // initialize before loop
+foreach (Charge::where('tenant_id',$space_info['tenant_id'])->where('space_id', $space_info['space_id'])->get() as $charge) {
+    if ($charge->is_fixed) {
+        $charge_amount = $charge->value;
+    } else {
+        $charge_amount = $amount_booked * ($charge->value / 100);
+    }
+    $amount += $charge_amount;
+    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
+     $payment_listing[] = [
+        'name' => $charge->name,
+        'fee'  => $charge_amount,
+    ];
+}
 
-    $chosenDays = json_decode($spot->chosen_days, true);
-    $expiryDay = $spot->expiry_day;
+    $chosenDays = json_decode($bookSpot->chosen_days, true);
+    
+    $expiryDay = $bookSpot->expiry_day;
 
     $invoice['schedule'] = is_array($chosenDays) && $expiryDay
         ? $this->generateSchedule($chosenDays, Carbon::parse($expiryDay))
@@ -117,7 +188,8 @@ public function show(Request $request, $slug, $id)
     return response()->json([
         'invoice' => $invoice,
         'bank'    => $bank,
-        'space_info'=>$space_info
+        'space_info'=>$space_info,
+        'charges'=>$payment_listing,
     ]);
 }
 

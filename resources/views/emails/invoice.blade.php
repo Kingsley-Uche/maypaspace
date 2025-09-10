@@ -153,6 +153,17 @@
                     </tr>
                 @endforeach
             @endif
+            
+            {{-- Charges --}}
+            @if (!empty($invoice['charges']))
+                @foreach ($invoice['charges'] as $charge)
+                    <tr>
+                        <td>Charges:</td>
+                        <td>{{ $charge['charge_name'] ?? 'Fee' }}</td>
+                        <td class="text-right">&#8358;{{ number_format($charge['amount'], 2) }}</td>
+                    </tr>
+                @endforeach
+            @endif
         </tbody>
         <tfoot>
             <tr>

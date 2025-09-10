@@ -26,7 +26,9 @@ use App\Http\Controllers\Api\V1\{
     InvoiceController,
     UserPrepaidController,
     Visitors,
-    TenantLogoController
+    TenantLogoController,
+    CurrencyController,
+    ChargeController
 };
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureTenantHasActivePlan;
@@ -98,6 +100,7 @@ Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group
 
     //view tenant details particularly logo and colour
     Route::get('/view-details', [TenantLogoController::class,'index']);
+    Route::post('/fetch/currency/location', [CurrencyController::class, 'fetchByLocation']); // Delete currency
 
     Route::middleware(['auth:sanctum', EnsureTenantHasActivePlan::class])->group(function () {
         
@@ -116,7 +119,7 @@ Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group
         Route::post('/spot/book', [BookSpotController::class, 'create']);  
         Route::post('/spot/cancel', [BookSpotController::class, 'cancelBooking']);
         Route::get('/spot/get', [BookSpotController::class, 'getBookings']);  
-        Route::post('/spot/update', [BookSpotController::class, 'update']);  
+        Route::post('/spot/update', [BookSpotController::class, 'update']);
         Route::get('/spot/available', [BookSpotController::class, 'getAllSpots']); 
         Route::get('/spot/single', [BookSpotController::class, 'getSingle']);  
         Route::post('/logout', [UserAuthController::class, 'logout']);
@@ -174,8 +177,9 @@ Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group
         Route::post('/space/create', [SpaceController::class, 'create']);
         Route::post('/space/update/{id}', [SpaceController::class, 'update']);
         Route::post('/space/delete', [SpaceController::class, 'destroy']);
-        Route::get('/space/list-spaces/{location_id}/{floor_id}', [SpaceController::class, 'index']);
+        Route::get('/space/list-spaces/{location_id}/{floor_id}', [SpaceController::class, 'get_by_floor']);
         Route::get('/space/show/{id}', [SpaceController::class, 'fetchOne']);
+        // Route::get('/spaces/list-spaces/{location_id}/{floor_id}', [SpaceController::class, 'get_by_floor']);
 
         // CRUD FOR NOTIFICATION THIS WILL BE CREATED BY TENANT OWNER
         Route::post('/notification/create', [NotificationController::class, 'store']);
@@ -186,6 +190,17 @@ Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group
         Route::post('/notification/toggle-publish/{id}', [NotificationController::class, 'togglePublish']);
         Route::post('/notification/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::get('/notification/view-my-notifications', [NotificationController::class, 'userIndex']);
+        
+        
+    Route::prefix('currencies')->group(function () {
+    Route::get('/all', [CurrencyController::class, 'index']);        // List all currencies
+    Route::get('/show/{id}', [CurrencyController::class, 'show']);   // Show single currency
+    Route::post('/create', [CurrencyController::class, 'store']);    // Create new currency
+    Route::post('/update/{id}', [CurrencyController::class, 'update']); // Update currency
+    Route::post('/delete/{id}', [CurrencyController::class, 'destroy']); // Delete currency
+   
+    
+});
 
         //CRUD for Discount
         Route::post('/discount/create', [DiscountController::class, 'create']);
@@ -227,6 +242,14 @@ Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group
          //set additional tenant details
         Route::post('/add-details', [TenantLogoController::class,'create']);
         Route::post('/update-details', [TenantLogoController::class,'update']);
+        
+        Route::prefix('charges')->group(function () {
+    Route::get('/all', [ChargeController::class, 'index']);          // Get all charges
+    Route::get('/show/{id}', [ChargeController::class, 'show']);     // Show single charge
+    Route::post('/create', [ChargeController::class, 'create']);     // Create new charge
+    Route::post('/update/{id}', [ChargeController::class, 'update']); // Update charge
+    Route::post('/delete/{id}', [ChargeController::class, 'destroy']);    // Delete charge
+});
     });
 
 

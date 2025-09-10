@@ -46,10 +46,12 @@ class BookSpot extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function spot()
-    {
-        return $this->belongsTo(Spot::class);
-    }
+public function spot()
+{
+    return $this->belongsTo(Spot::class, 'spot_id', 'id');
+}
+
+
 
     public function bookedRef()
     {

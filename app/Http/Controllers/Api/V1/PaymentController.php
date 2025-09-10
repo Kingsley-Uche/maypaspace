@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\TaxModel;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\BookingRecieptMail;
+use App\Models\PaymentListing;
 class PaymentController extends Controller
 {
     //Save tenant Unique paystack Secret key
@@ -68,10 +69,15 @@ class PaymentController extends Controller
             //Validate input
             $validated = $this->validateBookingRequest($request);
            $user_email_phone = User::where('phone', $validated['phone'])->orWhere('email', $validated['email'])->first();
+            $tenant_info = $this->checkTenant($slug);
+            if(!$tenant_info->paystack_secret_key){
+                return response()->json(['message'=> 'Contact Workspace Admin',], 422);
+            }
 
     if ($user_email_phone) {
         return response()->json(['message' => 'Email or phone already taken'], 422);
     }
+    
 
             // Early validation for one-off vs recurrent
             if ($validated['type'] === 'one-off' && ($validated['number_weeks'] || $validated['number_months'])) {
@@ -97,6 +103,7 @@ class PaymentController extends Controller
 
             // Check tenant availability
             $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
+            
             if ($tenantAvailability->isEmpty()) {
                 return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
             }
@@ -122,7 +129,7 @@ class PaymentController extends Controller
                     'start_time' => $day['start_time'],
                     'end_time' => $day['end_time'],
                 ])->exists();
-
+ 
                 if ($exists) {
                     return response()->json([
                         'message' => "This spot is already reserved for user on {$day['day']} between {$day['start_time']} and {$day['end_time']}",
@@ -139,6 +146,7 @@ class PaymentController extends Controller
             $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
             
             $amount = ceil($this->calculateBookingAmount($validated, $tenant, $totalDuration));
+           $space_id = Spot::where('id', $validated['spot_id'])->value('space_id');
 
             // Apply taxes
             $taxData = [];
@@ -147,6 +155,16 @@ class PaymentController extends Controller
                 $amount += $taxAmount;
                 $taxData[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
             }
+            $charge_data = []; // initialize before loop
+                foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $space_id)->get() as $charge) {
+                    if ($charge->is_fixed) {
+                        $charge_amount = $charge->value;
+                    } else {
+                        $charge_amount = $amount_booked * ($charge->value / 100);
+                    }
+                    $amount += $charge_amount;
+                    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
+                }
             $validated['user_type_id'] = 3;
             // Create user
             $userController = new UserContrl();
@@ -155,14 +173,15 @@ class PaymentController extends Controller
                 'spot_id' => $tenant->id,
                 'slug' => $slug,
             ]);
-            
+        
            if (isset($user['error'])) {
     return response()->json(['message' => $user['error']],422);
 }
 
 
             // Initialize Paystack payment
-            $paymentData = $this->initializePaystackPayment($user->email, $amount, $slug);
+            $paymentData = $this->initializePaystackPayment($user->email, $amount, $slug, $tenant_info);
+        
           
             if (!$paymentData || !isset($paymentData['data']['authorization_url'], $paymentData['data']['reference'])) {
                 throw new Exception('Failed to initialize payment');
@@ -198,7 +217,6 @@ class PaymentController extends Controller
                 'url' => $paymentData['data']['authorization_url'],
                 'access_code'=>$paymentData['data']['access_code'],
                 'payment_ref' => $reference,
-                // 'access_code'=>$paymentData['data']['access_code'],
                 'message' => 'Booking initialized successfully.'
             ], 200);
      } catch (Exception $e) {
@@ -228,6 +246,8 @@ class PaymentController extends Controller
             
              $tenant = $this->getTenantFromSpot($validated['spot_id']);
               $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
+              $space_id = Spot::where('id', $validated['spot_id'])->value('space_id');
+
         if ($tenantAvailability->isEmpty()) {
             return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
         }
@@ -240,8 +260,27 @@ class PaymentController extends Controller
                 $taxAmount = $amount * ($tax->percentage / 100);
                 $amount += $taxAmount;
                 $taxData[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
+                 $payment_listing[] = [
+        'name' => $tax->name,
+        'fee'  => $taxAmount,
+    ];
             }
 
+$charge_data = []; 
+$payment_listing = [];
+foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $space_id)->get() as $charge) {
+    if ($charge->is_fixed) {
+        $charge_amount = $charge->value;
+    } else {
+        $charge_amount = $amount_booked * ($charge->value / 100);
+    }
+    $amount += $charge_amount;
+    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
+     $payment_listing[] = [
+        'name' => $charge->name,
+        'fee'  => $charge_amount,
+    ];
+}
 
 
             // Verify payment
@@ -353,6 +392,18 @@ class PaymentController extends Controller
         $bookSpot->update(['invoice_ref' => $invoiceRef]);
          // Update payment status
        $updated = SpacePaymentModel::where('payment_ref', $validated['reference'])->first();
+        $payment_rows =collect($payment_listing)->map(fn($item) => [
+    'payment_name'       => $item['name'],
+    'fee'                => $item['fee'],
+    'book_spot_id'       => $bookSpot->id,
+    'tenant_id'          => $tenant->tenant_id,
+    'payment_by_user_id' => $validated['user_id'],
+    'payment_completed'  => false,
+    'created_at'         => now(),
+    'updated_at'         => now(),
+])->toArray();
+
+PaymentListing::insert($payment_rows);
 
 if (!$updated) {
     throw new Exception('Payment record not found or already updated');
@@ -384,6 +435,7 @@ if (!$updated) {
             'tenant_name' => $tenantData->company_name,
             'book_data' => $bookSpot,
             'taxes' => $taxData,
+            'charges'=>$charge_data,
             'invoice_ref' => $invoiceRef,
             'schedule' => $schedule,
         ];
@@ -713,10 +765,12 @@ if (!$updated) {
     /**
      * Initialize Paystack payment
      */
-    private function initializePaystackPayment($email, $amount, $slug)
+    private function initializePaystackPayment($email, $amount, $slug, $tenant)
     {
     
-        $tenant = $this->checkTenant($slug);
+       
+      
+        
 
         $booked = new BookedRef();
         $reference = $booked->generateRef($slug);
@@ -745,6 +799,7 @@ if (!$updated) {
             }
 
             $response = json_decode($result, true);
+        
             if (!$response || $response['status'] !== true) {
                 throw new Exception('Paystack initialization failed: ' . ($response['message'] ?? 'Unknown error'));
             }

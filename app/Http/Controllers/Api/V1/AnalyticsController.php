@@ -15,6 +15,7 @@ class AnalyticsController extends Controller
     public function index(Request $request, $tenant_slug){
 
         $user = $request->user();
+        
 
         $tenant = $this->checkTenant($tenant_slug, $user);
 
@@ -32,33 +33,33 @@ class AnalyticsController extends Controller
 
         $days = $request->query('days');
         
-        $categoryId = $request->query('categoryId');
+        $categoryId = (int)$request->query('categoryId');
 
-        $spotId = $request->query('spotId');
+        $spotId = (int)$request->query('spotId');
         
         $filterStartDateA = Carbon::parse($startTimeA);
         $filterEndDateA = Carbon::parse($endTimeA);
 
         $filterStartDateB = Carbon::parse($startTimeB);
         $filterEndDateB = Carbon::parse($endTimeB);
-
+        
         if($spotId && !$days){
-           $resultsA = $this->fetchFilterDataWithSpot($filterStartDateA, $filterEndDateA, $categoryId, $spotId, $tenant->id);
+           $resultsA = $this->fetchFilterDataWithSpot($filterStartDateA, $filterEndDateA, $categoryId, $spotId, (int)$tenant->id);
 
-           $resultsB = $this->fetchFilterDataWithSpot($filterStartDateB, $filterEndDateB, $categoryId, $spotId, $tenant->id); 
+           $resultsB = $this->fetchFilterDataWithSpot($filterStartDateB, $filterEndDateB, $categoryId, $spotId, (int)$tenant->id); 
         }elseif($spotId && $days){
-           $resultsA = $this->fetchFilterDataWithSpot($filterStartDateA, $filterEndDateA, $categoryId, $spotId, $tenant->id);
+           $resultsA = $this->fetchFilterDataWithSpot($filterStartDateA, $filterEndDateA, $categoryId, $spotId, (int)$tenant->id);
 
-           $resultsB = $this->fetchFilterDataWithSpot($filterStartDateB, $filterEndDateB, $categoryId, $spotId, $tenant->id); 
+           $resultsB = $this->fetchFilterDataWithSpot($filterStartDateB, $filterEndDateB, $categoryId, $spotId, (int)$tenant->id); 
         }elseif($days && !$spotId){
-            $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId, $tenant->id);
+            $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId, (int)$tenant->id);
 
-            $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, $tenant->id);
+            $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, (int)$tenant->id);
         }
         else{
-           $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId, $tenant->id);
+           $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId, (int)$tenant->id);
 
-           $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, $tenant->id);
+           $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, (int)$tenant->id);
         }
 
 
@@ -647,11 +648,11 @@ class AnalyticsController extends Controller
             return response()->json(['message' => 'Tenant not found'], 404);
         }
 
-        if($user->user_type_id != 1 && $user->user_type_id != 2){
+        if((int)$user->user_type_id != 1 && (int)$user->user_type_id != 2){
             return response()->json(['message' => 'You are not authorizeddd'], 403);
         }
 
-        if($user->tenant_id !== $tenant->id){
+        if((int)$user->tenant_id !== $tenant->id){
             return response()->json(['message' => 'You are not authorized'], 403);
         }
 
