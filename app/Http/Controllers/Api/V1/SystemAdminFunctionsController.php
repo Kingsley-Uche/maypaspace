@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Tenant;
 use App\Models\Admin;
+use App\Models\Subscription;
 use App\Models\UserType;
 class SystemAdminFunctionsController extends Controller
 {
@@ -156,6 +157,7 @@ class SystemAdminFunctionsController extends Controller
     }
 
     User::where('tenant_id', $tenant->id)->delete();
+    Subscription::where('id', $tenant->subscription_id)->delete();
 
     if (!$tenant->delete()) {
         return response()->json(['message' => 'Failed to delete, try again later'], 500);

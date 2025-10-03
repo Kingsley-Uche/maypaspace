@@ -74,12 +74,16 @@ class Space extends Model
     {
         return $this->belongsTo(Category::class, 'space_category_id');
     }
+ public function charges()
+    {
+        return $this->hasMany(Charge::class, 'space_id');
+    }
 
     protected static function booted()
     {
         static::addGlobalScope(new TenantScope());
     }
     public function location(){
-        return $this->belongsTo(Location::class, 'loactaion_id');
+        return $this->belongsTo(Location::class, 'location_id');
     }
 }

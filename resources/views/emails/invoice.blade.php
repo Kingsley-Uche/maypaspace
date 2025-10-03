@@ -131,7 +131,7 @@
                         <td class="text-right">&#8358;
                            @if($invoice['space_booking_type'] === 'hourly')
                             {{ number_format($invoice['space_price'] * $duration, 2) }}
-                                @else
+                                @elseif($invoice['space_booking_type']==='daily')
                                     {{ number_format($invoice['space_price'], 2) }}
                                 @endif
                         </td>
@@ -150,6 +150,17 @@
                         <td>Tax:</td>
                         <td>{{ $tax['tax_name'] ?? 'Tax' }}</td>
                         <td class="text-right">&#8358;{{ number_format($tax['amount'], 2) }}</td>
+                    </tr>
+                @endforeach
+            @endif
+            
+            {{-- Charges --}}
+            @if (!empty($invoice['charges']))
+                @foreach ($invoice['charges'] as $charge)
+                    <tr>
+                        <td>Charges:</td>
+                        <td>{{ $charge['charge_name'] ?? 'Fee' }}</td>
+                        <td class="text-right">&#8358;{{ number_format($charge['amount'], 2) }}</td>
                     </tr>
                 @endforeach
             @endif

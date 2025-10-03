@@ -184,9 +184,10 @@ public function create(Request $request, $slug)
     }
  public function time_zone_status(array $data): bool
 {
-    return TimeZone::where('location_id', $data['location_id'])
+    $status =TimeZone::where('location_id', $data['location_id'])
         ->where('tenant_id', $data['tenant_id'])
         ->exists();
+        return $status;
 }
 
 

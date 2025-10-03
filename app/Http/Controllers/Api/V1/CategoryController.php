@@ -19,6 +19,7 @@ public function create(Request $request, $tenant_slug)
 {
     $user = $request->user();
     $tenant = $this->checkTenant($tenant_slug);
+    
     if (!$tenant instanceof Tenant) return $tenant;
 
     if ($user->tenant_id != $tenant->id || !in_array($user->user_type_id, [1, 2])) {
@@ -45,10 +46,10 @@ public function create(Request $request, $tenant_slug)
     
      $timezone_status = new TimeZone();
             $timezoneCheck = $timezone_status->time_zone_status([
-                'location_id' => $tenant->location_id,
+                'location_id' => $validated['location_id'],
                 'tenant_id' => $tenant->id,
             ]);
-
+            
             if (!$timezoneCheck) {
                 return response()->json(['message' => 'Kindly set up your timezone'], 422);
             }
@@ -116,16 +117,15 @@ public function create(Request $request, $tenant_slug)
     }
 
     $validated = $validator->validated();
-         $timezone_status = new TimeZone();
+ $timezone_status = new TimeZone();
             $timezoneCheck = $timezone_status->time_zone_status([
-                'location_id' => $tenant->location_id,
+                'location_id' => $validated['location_id'],
                 'tenant_id' => $tenant->id,
             ]);
-
+            
             if (!$timezoneCheck) {
                 return response()->json(['message' => 'Kindly set up your timezone'], 422);
             }
-    
 
     $category = Category::findOrFail($id);
 

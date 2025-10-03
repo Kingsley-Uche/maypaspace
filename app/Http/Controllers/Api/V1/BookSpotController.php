@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use App\Models\InvoiceModel;
 use App\Models\TaxModel;
+use App\Models\PaymentListing;
+use App\Models\Charge;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\BookingInvoiceMail;
 use Illuminate\Support\Facades\Mail;
@@ -32,6 +34,13 @@ public function create(Request $request, $slug)
 
     try {
         $validated = $this->validateBookingRequest($request);
+
+if (isset($validated['error'])) {
+    return response()->json([
+        'message' => $validated['error'],
+        'success' => false
+    ], 422);
+}
         $loggedUser = Auth::user();
         
 
@@ -138,15 +147,37 @@ if (!$tenant) {
     ->first(); 
 
         
-        $amount = $this->calculateBookingAmount($validated, $spot_data, $totalDuration);
+        $amount_booked = $this->calculateBookingAmount($validated, $spot_data, $totalDuration);
+        $amount = $amount_booked;
 
         // Apply Taxes
         $tax_data = [];
-        foreach (TaxModel::where('tenant_id', $tenant->tenant_id)->get() as $tax) {
-            $taxAmount = $amount * ($tax->percentage / 100);
-            $amount += $taxAmount;
-            $tax_data[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
-        }
+        $payment_listing = [];
+        
+foreach (TaxModel::where('tenant_id', $tenant->tenant_id)->get() as $tax) {
+    $taxAmount = $amount_booked * ($tax->percentage / 100);
+    $amount += $taxAmount;
+    $tax_data[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
+     $payment_listing[] = [
+        'name' => $tax->name,
+        'fee'  => $taxAmount,
+    ];
+}
+        
+        $charge_data = []; // initialize before loop
+foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spot_data->space_id)->get() as $charge) {
+    if ($charge->is_fixed) {
+        $charge_amount = $charge->value;
+    } else {
+        $charge_amount = $amount_booked * ($charge->value / 100);
+    }
+    $amount += $charge_amount;
+    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
+     $payment_listing[] = [
+        'name' => $charge->name,
+        'fee'  => $charge_amount,
+    ];
+}
 
         $reference = (new BookedRef)->generateRef($slug);
 
@@ -188,6 +219,10 @@ if (!$tenant) {
         'updated_at' => now(),
     ];
 })->toArray();
+	
+
+
+
 ReservedSpots::insert($reservedSpotsData);
 
         SpacePaymentModel::updateOrCreate([
@@ -221,6 +256,18 @@ ReservedSpots::insert($reservedSpotsData);
         $chosenDays = json_decode($bookSpot->chosen_days, true);
         // Generate Schedule
         $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay));
+        $payment_rows =collect($payment_listing)->map(fn($item) => [
+            'payment_name'       => $item['name'],
+            'fee'                => $item['fee'],
+            'book_spot_id'       => $bookSpot->id,
+            'tenant_id'          => $tenant->tenant_id,
+            'payment_by_user_id' => $validated['user_id'],
+            'payment_completed'  => false,
+            'created_at'         => now(),
+            'updated_at'         => now(),
+            ])->toArray();
+
+PaymentListing::insert($payment_rows);
 
         $invoiceData = [
             'user_id' => $validated['user_id'],
@@ -234,6 +281,7 @@ ReservedSpots::insert($reservedSpotsData);
             'tenant_name' => $tenantData->company_name,
             'book_data' => $bookSpot,
             'taxes' => $tax_data,
+            'charges'=>$charge_data,
             'invoice_ref' => $invoiceRef,
             'schedule' => $schedule,
             'bank_details' =>$tenantData->bankAccounts->where('location_id', $tenant->location_id)->first(),
@@ -292,20 +340,27 @@ private function generateSchedule(array $chosenDays, Carbon $expiryDate): array
 
 private function validateBookingRequest(Request $request)
 {
-    return Validator::make($request->all(), [
+    $validator = Validator::make($request->all(), [
         'spot_id' => 'required|numeric|exists:spots,id',
         'user_id' => 'required|numeric|exists:users,id',
         'type' => 'required|in:one-off,recurrent',
         'number_weeks' => 'nullable|numeric|min:0|max:3',
         'number_months' => 'nullable|numeric|min:0|max:12',
-        //'chosen_days' => 'required_if:type,recurrent|array',
         'book_spot_id'=>'nullable|numeric|min:0',
         'chosen_days.*.day' => 'required|string|in:sunday,monday,tuesday,wednesday,thursday,friday,saturday',
         'chosen_days.*.start_time' => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
         'chosen_days.*.end_time' => 'required|date_format:Y-m-d H:i:s|after:chosen_days.*.start_time',
-    ])->validate();
-    
+    ]);
+
+    if ($validator->fails()) {
+        return [
+            'error' => $validator->errors()->first() // return first error message
+        ];
+    }
+
+    return $validator->validated();
 }
+
 
 private function getTenantFromSpot($spotId)
 {
@@ -389,50 +444,44 @@ private function areChosenTimesValid($chosenDays, $availability)
 
 
 
+
 private function hasConflicts($spotId, $chosenDays)
 {
-    $conflictDetails = collect();
-
     $bookings = BookSpot::where('spot_id', $spotId)
         ->where('expiry_day', '>=', now())
-        ->get();
+        ->whereNull('deleted_at')
+        ->pluck('chosen_days'); // fetch only the chosen_days column
 
-    if ($bookings->isEmpty()) {
-        return false;
-    }
-
-    foreach ($bookings as $booking) {
-        $bookedSlots = collect(json_decode($booking->chosen_days, true) ?? []);
+    foreach ($bookings as $daysJson) {
+        $bookedSlots = json_decode($daysJson, true) ?? [];
 
         foreach ($chosenDays as $inputDay) {
             $inputDayName = strtolower($inputDay['day']);
-            $inputStart = Carbon::parse($inputDay['start_time']);
-            $inputEnd = Carbon::parse($inputDay['end_time']);
+            $inputStart   = Carbon::parse($inputDay['start_time']);
+            $inputEnd     = Carbon::parse($inputDay['end_time']);
 
             foreach ($bookedSlots as $slot) {
-                $bookedDay = strtolower($slot['day']);
+                $bookedDay   = strtolower($slot['day']);
                 $bookedStart = Carbon::parse($slot['start_time']);
-                $bookedEnd = Carbon::parse($slot['end_time']);
+                $bookedEnd   = Carbon::parse($slot['end_time']);
 
                 if (
                     $inputDayName === $bookedDay &&
                     $bookedStart < $inputEnd &&
                     $bookedEnd > $inputStart
                 ) {
-                    $conflictDetails->push([
-                        'day' => ucfirst($inputDayName),
-                        'chosen_time' => "{$inputStart->format('H:i')} - {$inputEnd->format('H:i')}",
-                        'booked_time' => "{$bookedStart->format('H:i')} - {$bookedEnd->format('H:i')}",
-                    ]);
+                    return true; //stop at first conflict 
                 }
             }
         }
     }
 
-   
-
-    return $conflictDetails->isNotEmpty() ? $conflictDetails : false;
+    return false;
 }
+
+
+
+
 
 
 private function handleConflictResponse($spotId, $chosenDays)
@@ -711,6 +760,7 @@ public function update(Request $request, $slug)
     // Cancel an existing booking
     public function cancelBooking(Request $request)
     {
+    
         $validator = Validator::make($request->all(), [
             'book_spot_id' => 'required|numeric|exists:book_spots,id',
         ]);
@@ -739,15 +789,18 @@ public function update(Request $request, $slug)
 
         $invoiceCont =new InvoiceController();
         $invoiceCont-> cancelInvoice($booking->id);
+        PaymentListing::where('book_spot_id',$booking->id)->update(['payment_completed'=>false]);
         return response()->json(['message' => 'Booking successfully canceled'], 200);
     }
 
-    public function getBookings(Request $request)
+  
+
+public function getBookings(Request $request)
 {
     $validator = Validator::make($request->all(), [
-        'booking_type' => 'required|string|in:valid,all,expired,past',
-        'start_time'   => 'required_with:end_time|date_format:Y-m-d H:i:s',
-        'end_time'     => 'required_with:start_time|date_format:Y-m-d H:i:s|after:start_time',
+        'booking_type' => 'required|string|in:valid,all,expired,past,today',
+        'start_time'   => 'sometimes|date_format:Y-m-d H:i:s',
+        'end_time'     => 'sometimes|date_format:Y-m-d H:i:s|after:start_time',
     ]);
 
     if ($validator->fails()) {
@@ -758,43 +811,21 @@ public function update(Request $request, $slug)
     $tenantId = Auth::user()->tenant_id;
 
     $query = BookSpot::withTrashed()->with([
-        'spot' => function ($query) {
-            $query->select('id', 'book_status', 'space_id', 'location_id', 'floor_id', 'tenant_id');
-        },
-        'spot.space' => function ($query) {
-            $query->select('id', 'space_name', 'space_fee', 'space_category_id', 'tenant_id');
-        },
-        'spot.space.category' => function ($query) {
-            $query->select('id', 'category', 'tenant_id');
-        },
-        'bookedRef' => function ($query) {
-            $query->select('id', 'booked_ref');
-        }
-    ])
-    ->join('spots', 'book_spots.spot_id', '=', 'spots.id')
-    ->join('spaces', 'spots.space_id', '=', 'spaces.id')
-    ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
-    ->where('spaces.tenant_id', $tenantId)
-    ->select(
-        'book_spots.id as book_spot_id',
-        'book_spots.start_time',
-        'book_spots.expiry_day',
-        'book_spots.fee',
-        'book_spots.user_id',
-        'book_spots.spot_id',
-        'book_spots.created_at',
-        'book_spots.booked_ref_id',
-        'book_spots.chosen_days',
-        'book_spots.deleted_at'
-    );
+        'spot.space.category',
+        'bookedRef'
+    ])->whereHas('spot.space', function ($q) use ($tenantId) {
+        $q->where('tenant_id', $tenantId);
+    });
 
     switch ($validated['booking_type']) {
         case 'valid':
-            $query->where('book_spots.expiry_day', '>=', Carbon::now());
+            $query->where('expiry_day', '>=', Carbon::now())
+                  ->whereNull('deleted_at');
             break;
 
         case 'expired':
-            $query->where('book_spots.expiry_day', '<', Carbon::now());
+            $query->where('expiry_day', '<', Carbon::now())
+                  ->whereNull('deleted_at');
             break;
 
         case 'past':
@@ -803,30 +834,46 @@ public function update(Request $request, $slug)
                     'error' => 'Both start_time and end_time are required for past bookings'
                 ], 422);
             }
-            $query->whereBetween('book_spots.start_time', [
-                $validated['start_time'],
-                $validated['end_time']
-            ]);
+            $start = Carbon::parse($validated['start_time']);
+            $end   = Carbon::parse($validated['end_time']);
+            $query->whereBetween('start_time', [$start, $end])
+                  ->where('start_time', '<=',$end )// Carbon::now())
+                  ->whereNull('deleted_at');
             break;
 
+        case 'today':
+            if (!$request->has('start_time')) {
+                return response()->json([
+                    'error' => "start_time is required for the today's booking"
+                ], 422);
+            }
+    // Always use the date provided by the request
+    $date  = Carbon::parse($validated['start_time']);
+    $start = $date->copy()->startOfDay();
+    $end   = $date->copy()->endOfDay(); 
+
+    $query->whereBetween('start_time', [$start, $end]);
+          //->whereNull('deleted_at');
+    break;
+
+
         case 'all':
-            // no additional filter
+            // includes canceled too (because of withTrashed)
             break;
     }
 
-    $bookings = $query->orderByDesc('book_spots.id')->paginate(15);
+    $bookings = $query->orderByDesc('id')->get();
 
-    // Add custom book_status to each booking
-    $bookings->getCollection()->transform(function ($booking) {
+
+    $bookings->transform(function ($booking) {
         $now = Carbon::now();
 
         if ($booking->deleted_at !== null) {
             $booking->book_status = 'canceled';
+            $booking->fee =0;
         } elseif ($now->gt(Carbon::parse($booking->expiry_day))) {
             $booking->book_status = 'completed';
-        } elseif (
-            $now->between(Carbon::parse($booking->start_time), Carbon::parse($booking->expiry_day))
-        ) {
+        } elseif ($now->between(Carbon::parse($booking->start_time), Carbon::parse($booking->expiry_day))) {
             $booking->book_status = 'ongoing';
         } elseif ($now->lt(Carbon::parse($booking->start_time))) {
             $booking->book_status = 'awaiting';
@@ -841,72 +888,6 @@ public function update(Request $request, $slug)
 }
 
  
-// public function getFreeSpots(Request $request, $tenant_slug, $location_id = null)
-// {
-//     $spotsByCategory = []; // Initialize before usage
-
-//     // Validate if location_id is present
-//     if ($request->has('location_id') && $request->location_id !== null) {
-//         $validator = Validator::make($request->all(), [
-//             'location_id' => 'required|numeric|exists:locations,id',
-//         ]);
-
-//         if ($validator->fails()) {
-//             return response()->json(['error' => $validator->errors()], 422);
-//         }
-
-//         $location_id = $request->location_id;
-//     }
-
-//     // Fetch tenant by slug
-//     $tenant = Tenant::where('slug', $tenant_slug)->first();
-//     if (!$tenant) {
-//         return response()->json(['error' => 'Workspace doesn\'t exist'], 404);
-//     }
-
-//     // Build query
-//     $query = Spot::where('spots.tenant_id', $tenant->id)
-//         ->where('spots.book_status', 'no');
-
-//     if ($location_id) {
-//         $query->where('spots.location_id', $location_id);
-//     }
-
-//     // Get data in chunks to optimize memory usage
-//     $query->select('spots.id', 'spots.space_id', 'spots.location_id', 'spots.floor_id')
-//         ->with([
-//             'location:id,name',
-//             'floor:id,name',
-//             'space:id,space_name,space_fee,space_category_id',
-//             'space.category:id,category,booking_type',
-//             'space.category.images:id,category_id,image_path',
-//         ])
-//         ->join('spaces', 'spots.space_id', '=', 'spaces.id')
-//         ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
-//         ->orderBy('categories.category')
-//         ->chunk(1000, function ($freeSpots) use (&$spotsByCategory) {
-//             foreach ($freeSpots as $spot) {
-//                 $categoryName = $spot->space->category->category ?? 'Uncategorized';
-//                 if (!isset($spotsByCategory[$categoryName])) {
-//                     $spotsByCategory[$categoryName] = [];
-//                 }
-
-//                 $spotsByCategory[$categoryName][] = [
-//                     'spot_id' => $spot->id,
-//                     'space_name' => $spot->space->space_name,
-//                     'space_fee' => $spot->space->space_fee,
-//                     'location_id' => $spot->location_id,
-//                     'location_name' => $spot->location->name ?? 'Unknown',
-//                     'floor_name' => $spot->floor->name ?? 'Unknown',
-//                     'floor_id' => $spot->floor_id,
-//                     'category_id'=>$spot->space->space_category_id,
-//                     'book_time'=>$space->category->booking_type ?? 'Unknown', 
-//                 ];
-//             }
-//         });
-
-//     return response()->json(['data' => $spotsByCategory], 200);
-// }
 
    public function getFreeSpots(Request $request, $tenant_slug, $location_id = null)
 {
@@ -1048,6 +1029,7 @@ public function update(Request $request, $slug)
                     $spotsByCategory[$categoryName] = [];
                 }
                 $spotsByCategory[$categoryName][] = [
+                    'space_id'=>$spot->space->id,
                     'spot_id' => $spot->id,
                     'space_name' => $spot->space->space_name,
                     'space_fee' => $spot->space->space_fee,
