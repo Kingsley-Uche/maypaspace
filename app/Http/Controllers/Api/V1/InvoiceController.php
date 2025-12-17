@@ -12,6 +12,7 @@ use App\Models\Spot;
 use App\Models\Tenant;
 use App\Models\Charge;
 use App\Models\SpacePaymentModel;
+use App\Models\PaymentListing;
 use Carbon\Carbon;
 
 class InvoiceController extends Controller
@@ -104,12 +105,14 @@ public function show(Request $request, $slug, $id)
     if (!$tenant) {
         return response()->json(['message' => 'Tenant not found'], 404);
     }
+    
 
     $invoice = InvoiceModel::with([
         'bookSpot:id,spot_id,user_id,start_time,invoice_ref,fee,chosen_days,expiry_day',
         'user:id,first_name,last_name',
         'bookSpot.spot:id,space_id,location_id,floor_id'
     ])->find($id);
+
 
     if (!$invoice) {
         return response()->json(['error' => 'Invoice not found'], 404);
@@ -129,6 +132,7 @@ public function show(Request $request, $slug, $id)
         'spaces.space_fee',
         'floors.name as floor_name',
         'categories.category as category_name',
+         'categories.booking_type',
         'locations.id as location_id',
         'locations.name as location_name'
     )
@@ -149,29 +153,42 @@ public function show(Request $request, $slug, $id)
         ->where('tenant_id', $tenant->id)
         ->where('location_id', $locationId)
         ->first();
-     
-       $payment_listing = [];
-        
-foreach (TaxModel::where('tenant_id', $tenant->tenant_id)->get() as $tax) {
+$payment_listing = [];
+$tax_data = [];
+$charge_data = [];
+$amount = 0;
+
+// taxes
+foreach (TaxModel::where('tenant_id', $tenant->id)->get() as $tax) {
     $taxAmount = $amount_booked * ($tax->percentage / 100);
     $amount += $taxAmount;
-    $tax_data[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
-     $payment_listing[] = [
+
+    $tax_data[] = [
+        'tax_name' => $tax->name,
+        'amount'   => $taxAmount
+    ];
+
+    $payment_listing[] = [
         'name' => $tax->name,
         'fee'  => $taxAmount,
     ];
 }
-        
-        $charge_data = []; // initialize before loop
-foreach (Charge::where('tenant_id',$space_info['tenant_id'])->where('space_id', $space_info['space_id'])->get() as $charge) {
-    if ($charge->is_fixed) {
-        $charge_amount = $charge->value;
-    } else {
-        $charge_amount = $amount_booked * ($charge->value / 100);
-    }
+
+// charges
+foreach (Charge::where('tenant_id',$space_info['tenant_id'])
+               ->where('space_id', $space_info['space_id'])->get() as $charge) {
+    $charge_amount = $charge->is_fixed
+        ? $charge->value
+        : $amount_booked * ($charge->value / 100);
+
     $amount += $charge_amount;
-    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
-     $payment_listing[] = [
+
+    $charge_data[] = [
+        'charge_name' => $charge->name,
+        'amount'      => $charge_amount
+    ];
+
+    $payment_listing[] = [
         'name' => $charge->name,
         'fee'  => $charge_amount,
     ];
@@ -252,6 +269,7 @@ foreach (Charge::where('tenant_id',$space_info['tenant_id'])->where('space_id', 
 
         $payment = SpacePaymentModel::where('invoice_ref', $ref)->first();
         $invoice_model = InvoiceModel::where('invoice_ref', $ref)->first();
+        
 
 
         if (!$payment) {
@@ -260,6 +278,7 @@ foreach (Charge::where('tenant_id',$space_info['tenant_id'])->where('space_id', 
 
         $payment->update(['payment_status' => 'completed']);
         $invoice_model->update(['status'=>'paid']);
+        PaymentListing::where('book_spot_id',$invoice_model['book_spot_id'])->update(['payment_completed'=>1]);
 
         return response()->json([
             'message' => 'Invoice closed successfully',
@@ -296,6 +315,7 @@ foreach (Charge::where('tenant_id',$space_info['tenant_id'])->where('space_id', 
     public function cancelInvoice($book_spot_id)
     {
         $data = InvoiceModel::where('book_spot_id', $book_spot_id)->first();
+               $space_payment_model = SpacePaymentModel::where('invoice_ref',$data['invoice_ref'])->update(['payment_status'=>'cancelled']);
 
         if (!$data) {
             return response()->json(['error' => 'Invoice not found'], 404);

@@ -131,7 +131,7 @@
                         <td class="text-right">&#8358;
                            @if($invoice['space_booking_type'] === 'hourly')
                             {{ number_format($invoice['space_price'] * $duration, 2) }}
-                                @else
+                                @elseif($invoice['space_booking_type']==='daily')
                                     {{ number_format($invoice['space_price'], 2) }}
                                 @endif
                         </td>

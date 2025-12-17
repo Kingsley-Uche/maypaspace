@@ -181,26 +181,26 @@ class UserFunctionsController extends Controller
         $view_user = $userType[0]['user_type']['view_user'];
 
         if($user->user_type_id == 1){
-            $users = User::where('tenant_id', $tenant->id)->with('user_type')->paginate(20); 
+            $users = User::where('tenant_id', $tenant->id)->with('user_type')->paginate(100); 
 
             return response()->json(['data'=> $users], 200);
         }
 
         if($view_user == 'yes' && $view_admin !== 'yes'){
-            $users = User::where('tenant_id', $tenant->id)->where('user_type_id', 3)->with('user_type')->paginate(20);
+            $users = User::where('tenant_id', $tenant->id)->where('user_type_id', 3)->with('user_type')->paginate(100);
 
             return response()->json(['data'=> $users], 200);
         }
 
         if($view_user !== 'yes' && $view_admin == 'yes'){
-            $users = User::where('tenant_id', $tenant->id)->whereNotIn('user_type_id', [1])->whereNotIn('user_type_id',[2])->with('user_type')->paginate(20);
+            $users = User::where('tenant_id', $tenant->id)->whereNotIn('user_type_id', [1])->whereNotIn('user_type_id',[2])->with('user_type')->paginate(100);
 
             return response()->json(['data'=> $users], 200);
         }
 
         if($view_user == 'yes' && $view_admin == 'yes'){
     
-            $users = User::where('tenant_id', $tenant->id)->whereNotIn('user_type_id', [1])->with('user_type')->paginate(20);
+            $users = User::where('tenant_id', $tenant->id)->whereNotIn('user_type_id', [1])->with('user_type')->paginate(100);
 
             return response()->json(['data'=> $users], 200);
         }

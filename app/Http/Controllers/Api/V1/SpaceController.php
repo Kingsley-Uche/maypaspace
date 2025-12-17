@@ -38,7 +38,7 @@ class SpaceController extends Controller
            'space_fee' => 'required|numeric|regex:/^\d+(\.\d{1,2})?$/',
             'space_category_id' => 'required|numeric|gte:1|exists:categories,id',
             'min_space_discount_time' => 'nullable|numeric|gte:1',
-           'space_discount' => ['nullable','numeric','gte:1'],
+           'space_discount' => ['nullable', 'numeric', 'min:0'],
         ],
     ['floor_id' => 'This floor does not exist on this workspace, please check and try again',
     'location_id' => 'This location does not exist on this workspace, please check and try again',
@@ -117,7 +117,7 @@ class SpaceController extends Controller
     'space_fee' => 'sometimes|required',
     'space_category_id' => 'sometimes|required|numeric|gte:1',
     'min_space_discount_time' => 'sometimes|nullable|numeric|gte:1',
-    'space_discount' => 'sometimes|nullable|numeric|gte:1',
+   'space_discount' => ['nullable', 'numeric', 'min:0'],
 ]);
 
 if ($validator->fails()) {
