@@ -58,7 +58,7 @@ class AnalyticsController extends Controller
         }
         else{
            $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId, (int)$tenant->id);
-
+            
            $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, (int)$tenant->id);
         }
 
@@ -642,6 +642,7 @@ class AnalyticsController extends Controller
 
 
     private function checkTenant($tenant_slug, $user){
+        
         $tenant = Tenant::where('slug', $tenant_slug)->first();
 
         if (!$tenant) {

@@ -852,8 +852,7 @@ public function getBookings(Request $request)
     $start = $date->copy()->startOfDay();
     $end   = $date->copy()->endOfDay(); 
 
-    $query->whereBetween('start_time', [$start, $end]);
-          //->whereNull('deleted_at');
+    $query->whereBetween('created_at', [$start, $end]);
     break;
 
 
