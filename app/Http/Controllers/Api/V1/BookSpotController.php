@@ -34,6 +34,10 @@ public function create(Request $request, $slug)
 
     try {
         $validated = $this->validateBookingRequest($request);
+        $numberDays = count($validated['chosen_days'] ?? []);
+        $numberWeeks = (int) ($validated['number_weeks'] ?? 0);
+        $numberMonths = (int) ($validated['number_months'] ?? 0);
+
 
 if (isset($validated['error'])) {
     return response()->json([
@@ -172,7 +176,7 @@ foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spot
         $charge_amount = $amount_booked * ($charge->value / 100);
     }
     $amount += $charge_amount;
-    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
+      $charge_data[] = ['charge_name' => $charge->name, 'unit_amount' => $charge->value, 'total_amount' => $charge_amount, 'quantity' => 1];
      $payment_listing[] = [
         'name' => $charge->name,
         'fee'  => $charge_amount,
@@ -280,6 +284,11 @@ PaymentListing::insert($payment_rows);
             'user_invoice' => "{$invoiceUser->first_name} {$invoiceUser->last_name}",
             'tenant_name' => $tenantData->company_name,
             'book_data' => $bookSpot,
+            'invoice_info'=>[
+                'number_days'=>$numberDays,
+                'number_weeks'=>$numberWeeks,
+                'number_months'=>$numberMonths
+            ],
             'taxes' => $tax_data,
             'charges'=>$charge_data,
             'invoice_ref' => $invoiceRef,
@@ -290,9 +299,21 @@ PaymentListing::insert($payment_rows);
         ];
 
         DB::commit();
+              try {
+    Mail::to($invoiceUser->email)
+        ->send(new BookingInvoiceMail($invoiceData));
+} catch (\Throwable $e) {
+    Log::error('Booking invoice email failed', [
+        'email'       => $invoiceUser->email,
+        'booked_ref'  => $reference,
+        'invoice_ref' => $invoiceRef ?? null,
+        'error'       => $e->getMessage(),
+    ]);
+}
 
         // Send invoice via email
-        Mail::to($invoiceUser->email)->send(new BookingInvoiceMail($invoiceData));
+        //make this to work with queue later
+        
 
         return response()->json([
             'message' => 'Booking successfully created',

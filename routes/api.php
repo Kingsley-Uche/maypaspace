@@ -28,7 +28,8 @@ use App\Http\Controllers\Api\V1\{
     Visitors,
     TenantLogoController,
     CurrencyController,
-    ChargeController
+    ChargeController,
+    DynamicInvoiceController
 };
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureTenantHasActivePlan;
@@ -250,8 +251,12 @@ Route::prefix('{tenant_slug}')->middleware(['settenant', 'throttle:api'])->group
     Route::post('/update/{id}', [ChargeController::class, 'update']); // Update charge
     Route::post('/delete/{id}', [ChargeController::class, 'destroy']);    // Delete charge
 });
+Route::prefix('dynamic/invoice')->group(function () {
+    Route::get('/all', [DynamicInvoiceController::class, 'index']);          // Get all charges
+    Route::get('/show/{id}', [DynamicInvoiceController::class, 'show']);     // Show single charge
+    Route::post('/create', [DynamicInvoiceController::class, 'create']);     // Create new charge
+    Route::post('/update/{id}', [DynamicInvoiceController::class, 'update']); // Update charge
+    Route::post('/delete/{id}', [DynamicInvoiceController::class, 'destroy']);    // Delete charge
+});
     });
-
-
-
 });
