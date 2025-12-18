@@ -28,7 +28,8 @@ use App\Http\Controllers\Api\V1\{
     Visitors,
     TenantLogoController,
     CurrencyController,
-    ChargeController
+    ChargeController,
+    DynamicInvoiceController
 };
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureTenantHasActivePlan;
