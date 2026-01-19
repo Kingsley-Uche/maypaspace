@@ -11,9 +11,12 @@ class TaxController extends Controller
     /**
      * Display a listing of tax models.
      */
-    public function index()
+    public function index(Request $request, $slug)
     {
-        $taxes = TaxModel::all();
+        $user = $request->user();
+        $tenant = $this->checkTenant($slug, $user);
+        
+        $taxes = TaxModel::where('tenant_id', $tenant->id)->get();
         return response()->json($taxes);
     }
 

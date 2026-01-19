@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Api\V1\TimeZoneController as TimeZone;
 use App\Models\TimeZoneModel;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\{BookSpot, Spot, Tenant,Location, User, Space, BookedRef, SpacePaymentModel,TimeSetUpModel,ReservedSpots};
 use App\Http\Controllers\Api\V1\InvoiceController;
@@ -23,7 +22,7 @@ use App\Models\PaymentListing;
 use App\Models\Charge;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\BookingInvoiceMail;
-
+use Illuminate\Support\Facades\Mail;
 class DynamicInvoiceController extends Controller
 {
     //
@@ -31,8 +30,9 @@ class DynamicInvoiceController extends Controller
 {
     DB::beginTransaction();
 
-    try {
+   try {
         $validated = $this->validateBookingRequest($request);
+        
 
 if (isset($validated['error'])) {
     return response()->json([
@@ -82,8 +82,10 @@ if (!$tenant) {
         
         
         $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
+        
 
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
+    
         
         if ($tenantAvailability->isEmpty()) {
             return response()->json(['message' => 'Workspace not available for the chosen time'], 404);
@@ -149,34 +151,124 @@ if (!$tenant) {
         $amount_booked = $this->calculateBookingAmount($validated, $spot_data, $totalDuration);
         $amount = $amount_booked;
 
-        // Apply Taxes
-        $tax_data = [];
-        $payment_listing = [];
-        
+/// Apply Taxes
+$tax_data = [];
+$payment_listing = [];
+$vat = null; // use null instead of empty array
+
 foreach (TaxModel::where('tenant_id', $tenant->tenant_id)->get() as $tax) {
-    $taxAmount = $amount_booked * ($tax->percentage / 100);
-    $amount += $taxAmount;
-    $tax_data[] = ['tax_name' => $tax->name, 'amount' => $taxAmount];
-     $payment_listing[] = [
-        'name' => $tax->name,
-        'fee'  => $taxAmount,
-    ];
-}
-        
-        $charge_data = []; // initialize before loop
-foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spot_data->space_id)->get() as $charge) {
-    if ($charge->is_fixed) {
-        $charge_amount = $charge->value;
+
+    $taxAmount = 0;
+    if (strtolower($tax->name) !== 'vat') {
+        // Non-VAT taxes applied directly
+        $taxAmount = $amount_booked * ($tax->percentage / 100);
+        $amount += $taxAmount;
+
+        $tax_data[] = [
+            'tax_name' => $tax->name,
+            'amount'   => $taxAmount
+        ];
+
+        $payment_listing[] = [
+            'charge_name' => $tax->name,
+            'amount'  => $taxAmount,
+        ];
     } else {
-        $charge_amount = $amount_booked * ($charge->value / 100);
+        // Store VAT info to apply later
+        $vat = ['name' => $tax->name, 'percentage' => $tax->percentage];
     }
-    $amount += $charge_amount;
-    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
-     $payment_listing[] = [
-        'name' => $charge->name,
-        'fee'  => $charge_amount,
+}
+
+// VAT on main booking
+$vatRate = $vat ? ($vat['percentage'] / 100) : 0;
+
+if ($vatRate > 0) {
+    $bookingVat = $amount_booked * $vatRate;
+    $amount += $bookingVat;
+
+    $tax_data[] = [
+        'tax_name' => 'VAT',
+        'amount'   => $bookingVat,
+    ];
+
+    $payment_listing[] = [
+        'charge_name' => $tenant->space->category->category.'(VAT)',
+        'amount'  => $bookingVat,
     ];
 }
+
+// Charges
+$charge_data = [];
+foreach (Charge::where('tenant_id', $tenant->tenant_id)
+    ->where('space_id', $spot_data->space_id)
+    ->get() as $charge) {
+
+    $charge_amount = $charge->is_fixed ? $charge->value : $amount_booked * ($charge->value / 100);
+    $amount += $charge_amount;
+
+    $charge_data[] = [
+        'charge_name' => $charge->name,
+        'amount'      => $charge_amount
+    ];
+
+    $payment_listing[] = [
+        'charge_name' => $charge->name,
+        'amount'  => $charge_amount,
+    ];
+}
+
+// Extras initialization
+$extra_charge = 0;
+$extra_vat_total = 0;
+$extra_items = [];
+
+
+
+
+foreach ($validated['item_name'] as $index => $name) {
+    $unit_price = (float) $validated['item_charge'][$index];
+    $quantity   = (int) $validated['item_number'][$index];
+
+    $subtotal   = $unit_price * $quantity;
+    $vat_amount = $subtotal * $vatRate;
+    $total      = $subtotal + $vat_amount;
+
+    $extra_charge    += $total;
+    $extra_vat_total += $vat_amount;
+
+    $extra_items[] = [
+        'name'       => $name,
+        'unit_price' => $unit_price,
+        'quantity'   => $quantity,
+        'subtotal'   => $subtotal,
+        'vat'        => $vat_amount,
+        'total'      => $total,
+    ];
+
+    $payment_listing[] = [
+        'charge_name' => "{$name} (x{$quantity})",
+        'amount'  => $subtotal,
+    ];
+
+    if ($vat_amount > 0) {
+        $payment_listing[] = [
+            'charge_name' => "{$name} VAT",
+            'amount'  => $vat_amount,
+        ];
+    }
+}
+
+if ($extra_vat_total > 0) {
+    $tax_data[] = [
+        'tax_name' => 'VAT (Extras)',
+        'amount'   => $extra_vat_total,
+    ];
+}
+
+$amount += $extra_charge;
+
+
+
 
         $reference = (new BookedRef)->generateRef($slug);
 
@@ -256,8 +348,8 @@ ReservedSpots::insert($reservedSpotsData);
         // Generate Schedule
         $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay));
         $payment_rows =collect($payment_listing)->map(fn($item) => [
-            'payment_name'       => $item['name'],
-            'fee'                => $item['fee'],
+            'payment_name'       => $item['charge_name'],
+            'fee'                => $item['amount'],
             'book_spot_id'       => $bookSpot->id,
             'tenant_id'          => $tenant->tenant_id,
             'payment_by_user_id' => $validated['user_id'],
@@ -280,7 +372,7 @@ PaymentListing::insert($payment_rows);
             'tenant_name' => $tenantData->company_name,
             'book_data' => $bookSpot,
             'taxes' => $tax_data,
-            'charges'=>$charge_data,
+            'charges'=>$payment_listing,
             'invoice_ref' => $invoiceRef,
             'schedule' => $schedule,
             'bank_details' =>$tenantData->bankAccounts->where('location_id', $tenant->location_id)->first(),
@@ -304,28 +396,61 @@ PaymentListing::insert($payment_rows);
         return response()->json(['message' => 'Something went wrong', 'error' => $e->getMessage()], 500);
     }
 }
+
 private function validateBookingRequest(Request $request)
 {
-    $validator = Validator::make($request->all(), [
-        'spot_id' => 'required|numeric|exists:spots,id',
-        'user_id' => 'required|numeric|exists:users,id',
-        'type' => 'required|in:one-off,recurrent',
-        'number_weeks' => 'nullable|numeric|min:0|max:3',
-        'number_months' => 'nullable|numeric|min:0|max:12',
-        'book_spot_id'=>'nullable|numeric|min:0',
-        'chosen_days.*.day' => 'required|string|in:sunday,monday,tuesday,wednesday,thursday,friday,saturday',
+
+        $validator = Validator::make($request->all(), [
+        'item_name'           => 'required|array',
+        'item_name.*'         => 'required|string',
+
+        'item_charge'         => 'required|array',
+        'item_charge.*'       => 'required|numeric',
+
+        'item_number'         => 'required|array',
+        'item_number.*'       => 'required|integer',
+
+        'spot_id'             => 'required|numeric|exists:spots,id',
+        'user_id'             => 'required|numeric|exists:users,id',
+
+        'type'                => 'required|in:one-off,recurrent',
+        'number_weeks'        => 'nullable|integer|min:0|max:3',
+        'number_months'       => 'nullable|integer|min:0|max:12',
+
+        'book_spot_id'        => 'nullable|numeric|min:0',
+
+        'chosen_days'         => 'required|array',
+        'chosen_days.*.day'   => 'required|string|in:sunday,monday,tuesday,wednesday,thursday,friday,saturday',
         'chosen_days.*.start_time' => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
-        'chosen_days.*.end_time' => 'required|date_format:Y-m-d H:i:s|after:chosen_days.*.start_time',
+        'chosen_days.*.end_time'   => 'required|date_format:Y-m-d H:i:s',
     ]);
+
+    // Custom validation for end_time > start_time
+    $validator->after(function ($validator) use ($request) {
+        if ($request->has('chosen_days')) {
+            foreach ($request->chosen_days as $index => $day) {
+                if (
+                    isset($day['start_time'], $day['end_time']) &&
+                    strtotime($day['end_time']) <= strtotime($day['start_time'])
+                ) {
+                    $validator->errors()->add(
+                        "chosen_days.$index.end_time",
+                        'End time must be after start time.'
+                    );
+                }
+            }
+        }
+    });
 
     if ($validator->fails()) {
         return [
-            'error' => $validator->errors()->first() // return first error message
+            'error' => $validator->errors()->first()
         ];
     }
 
     return $validator->validated();
 }
+
 
 private function getTenantFromSpot($spotId)
 {
@@ -363,14 +488,14 @@ private function calculateExpiryDate($type, $chosenDays, $validated)
 private function getTenantAvailability($slug, $chosenDays)
 {
     
-    $cacheKey = "tenant_availability_{$slug}_" . md5(implode(',', $chosenDays->pluck('day')->sort()->toArray()));
-    return Cache::remember($cacheKey, now()->addHour(), function () use ($slug, $chosenDays) {
+   // $cacheKey = "tenant_availability_{$slug}_" . md5(implode(',', $chosenDays->pluck('day')->sort()->toArray()));
+   // return Cache::remember($cacheKey, now()->addHour(), function () use ($slug, $chosenDays) {
         return TimeSetUpModel::join('tenants', 'time_set_ups.tenant_id', '=', 'tenants.id')
             ->where('tenants.slug', $slug)
             ->whereIn('time_set_ups.day', $chosenDays->pluck('day'))
             ->select('time_set_ups.day', 'time_set_ups.open_time', 'time_set_ups.close_time')
             ->get();
-    });
+   // });
 }
 
 private function areAllDaysAvailable($chosenDays, $availability)
@@ -591,6 +716,38 @@ private function isInvalidRecurrentBooking($validated, $tenant)
         $total -= $total * ($discount / 100);
     }
     return $total;
+}
+private function confirmSpot($spotId)
+{
+    $spot = Spot::with('tenant')->find($spotId);
+
+    return $spot ? $spot->tenant : null;
+}
+
+private function generateSchedule(array $chosenDays, Carbon $expiryDate): array
+{
+    $schedule = [];
+
+    foreach ($chosenDays as $day) {
+        $weekday = strtolower($day['day']);
+        $startTime = Carbon::parse($day['start_time'])->format('H:i:s');
+        $endTime = Carbon::parse($day['end_time'])->format('H:i:s');
+        $current = Carbon::parse($day['start_time'])->copy();
+
+        while ($current->lte($expiryDate)) {
+            $schedule[] = [
+                'day' => $weekday,
+                'date' => $current->toDateString(),
+                'start_time' => $current->format('Y-m-d H:i:s'),
+                'end_time' => $current->copy()->setTimeFromTimeString($endTime)->format('Y-m-d H:i:s'),
+            ];
+
+            $current->addWeek();
+        }
+    }
+
+    usort($schedule, fn($a, $b) => strtotime($a['start_time']) <=> strtotime($b['start_time']));
+    return $schedule;
 }
 
 }
