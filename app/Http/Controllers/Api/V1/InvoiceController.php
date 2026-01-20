@@ -159,40 +159,36 @@ $charge_data = [];
 $amount = 0;
 
 // taxes
-foreach (TaxModel::where('tenant_id', $tenant->id)->get() as $tax) {
-    $taxAmount = $amount_booked * ($tax->percentage / 100);
-    $amount += $taxAmount;
+foreach (PaymentListing::where('tenant_id', $tenant->id)->where('book_spot_id',$invoice->bookSpot->id)->get() as $tax) {
+    // $taxAmount = $amount_booked * ($tax->percentage / 100);
+    // $amount += $taxAmount;
 
-    $tax_data[] = [
-        'tax_name' => $tax->name,
-        'amount'   => $taxAmount
-    ];
-
+   
     $payment_listing[] = [
-        'name' => $tax->name,
-        'fee'  => $taxAmount,
+        'name' => $tax->payment_name,
+        'fee'  => $tax->fee,
     ];
 }
 
 // charges
-foreach (Charge::where('tenant_id',$space_info['tenant_id'])
-               ->where('space_id', $space_info['space_id'])->get() as $charge) {
-    $charge_amount = $charge->is_fixed
-        ? $charge->value
-        : $amount_booked * ($charge->value / 100);
+// foreach (Charge::where('tenant_id',$space_info['tenant_id'])
+//               ->where('space_id', $space_info['space_id'])->get() as $charge) {
+//     $charge_amount = $charge->is_fixed
+//         ? $charge->value
+//         : $amount_booked * ($charge->value / 100);
 
-    $amount += $charge_amount;
+//     $amount += $charge_amount;
 
-    $charge_data[] = [
-        'charge_name' => $charge->name,
-        'amount'      => $charge_amount
-    ];
+//     $charge_data[] = [
+//         'charge_name' => $charge->name,
+//         'amount'      => $charge_amount
+//     ];
 
-    $payment_listing[] = [
-        'name' => $charge->name,
-        'fee'  => $charge_amount,
-    ];
-}
+//     $payment_listing[] = [
+//         'name' => $charge->name,
+//         'fee'  => $charge_amount,
+//     ];
+// }
 
     $chosenDays = json_decode($bookSpot->chosen_days, true);
     

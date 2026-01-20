@@ -83,7 +83,7 @@ if (!$tenant) {
         
         
         $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
-        dd($slug);
+        
 
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
         
