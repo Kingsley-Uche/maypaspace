@@ -7,6 +7,8 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\BookingExpirationReminderMail;
+use Illuminate\Support\Facades\Cache;
+
 use Carbon\Carbon;
 
 use App\Models\BookSpot;
@@ -82,30 +84,24 @@ class CheckBookingExpiration implements ShouldQueue
                     //days left is > 7 but < 30
                     //and today is monday (when these conditions are met, reminders will be sent every monday)
                     if ($daysLeft > 7 && $daysLeft < 30 && now()->isMonday()) {
-                        Mail::to($booking->email)->queue(new BookingExpirationReminderMail($messageData));
-                        \Log::info("booking expiration mail queued for booking {$booking->id}");
+                       $this->queueReminder($booking, $daysLeft, $messageData);
                     }
                     else if ($daysLeft <= 7 && $daysLeft > 2 && $daysLeft % 2 === 0) {
-                        Mail::to($booking->email)->queue(new BookingExpirationReminderMail($messageData));
-                        \Log::info("booking expiration mail queued for booking {$booking->id}");
+                        $this->queueReminder($booking, $daysLeft, $messageData);
                     }
                     else if ($daysLeft <= 2) {
-                        Mail::to($booking->email)->queue(new BookingExpirationReminderMail($messageData));
-                        \Log::info("booking expiration mail queued for booking {$booking->id}");
+                       $this->queueReminder($booking, $daysLeft, $messageData);
                     }
                 }else if($duration <= 60){
                     
                     if ($daysLeft > 7 && $daysLeft < 14 && now()->isMonday()) {
-                        Mail::to($booking->email)->queue(new BookingExpirationReminderMail($messageData));
-                        \Log::info("booking expiration mail queued for booking {$booking->id}");
+                        $this->queueReminder($booking, $daysLeft, $messageData);
                     }
                     else if ($daysLeft <= 7 && $daysLeft > 2 && $daysLeft % 2 === 0) {
-                        Mail::to($booking->email)->queue(new BookingExpirationReminderMail($messageData));
-                        \Log::info("booking expiration mail queued for booking {$booking->id}");
+                        $this->queueReminder($booking, $daysLeft, $messageData);
                     }
                     else if ($daysLeft <= 2) {
-                        Mail::to($booking->email)->queue(new BookingExpirationReminderMail($messageData));
-                        \Log::info("booking expiration mail queued for booking {$booking->id}");
+                        $this->queueReminder($booking, $daysLeft, $messageData);
                     } 
                 }
                 
@@ -114,4 +110,19 @@ class CheckBookingExpiration implements ShouldQueue
 
 
     }
+
+    private function queueReminder($booking, $daysLeft, $messageData): void
+    {
+        Cache::remember(
+            "booking_expiry_mail_sent_{$booking->id}_{$daysLeft}",
+            now()->addDay(),
+            function () use ($booking, $messageData) {
+                Mail::to($booking->email)
+                    ->queue(new BookingExpirationReminderMail($messageData));
+
+                \Log::info("booking expiration mail queued for booking {$booking->id}");
+            }
+        );
+    }
+
 }
