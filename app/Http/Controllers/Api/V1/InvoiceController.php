@@ -170,6 +170,7 @@ foreach (PaymentListing::where('tenant_id', $tenant->id)->where('book_spot_id',$
     ];
 }
 
+
 // charges
 // foreach (Charge::where('tenant_id',$space_info['tenant_id'])
 //               ->where('space_id', $space_info['space_id'])->get() as $charge) {

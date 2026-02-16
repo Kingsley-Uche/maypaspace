@@ -230,7 +230,8 @@ foreach ($validated['item_name'] as $index => $name) {
     $quantity   = (int) $validated['item_number'][$index];
 
     $subtotal   = $unit_price * $quantity;
-    $vat_amount = $subtotal * $vatRate;
+    $vat_amount = 0;
+    //$subtotal * $vatRate;
     $total      = $subtotal + $vat_amount;
 
     $extra_charge    += $total;
