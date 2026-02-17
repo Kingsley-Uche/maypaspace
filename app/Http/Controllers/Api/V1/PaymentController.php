@@ -234,10 +234,14 @@ class PaymentController extends Controller
      */
     public function confirmPayment(Request $request, $slug)
     {
+         
     DB::beginTransaction();
     try {
             // Validate input
-            $validated = $this->validateConfirmRequest($request);
+        $validated = $this->validateConfirmRequest($request);
+        $numberWeeks = (int) ($validated['number_weeks'] ?? 0);
+        $numberMonths = (int) ($validated['number_months'] ?? 0);
+        $numberDays = count($validated['chosen_days'] ?? []);
            
             // Normalize chosen days
             $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
@@ -275,7 +279,7 @@ foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spac
         $charge_amount = $amount_booked * ($charge->value / 100);
     }
     $amount += $charge_amount;
-    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
+     $charge_data[] = ['charge_name' => $charge->name, 'unit_amount' => $charge->value, 'total_amount' => $charge_amount, 'quantity' => 1];
      $payment_listing[] = [
         'name' => $charge->name,
         'fee'  => $charge_amount,

@@ -58,7 +58,11 @@ class AnalyticsController extends Controller
         }
         else{
            $resultsA = $this->fetchFilterData($filterStartDateA, $filterEndDateA, $categoryId, (int)$tenant->id);
+<<<<<<< HEAD
+
+=======
             
+>>>>>>> 87460079cb67e09c28c364d33d0adbba7adfe800
            $resultsB = $this->fetchFilterData($filterStartDateB, $filterEndDateB, $categoryId, (int)$tenant->id);
         }
 
