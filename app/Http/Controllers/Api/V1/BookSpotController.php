@@ -34,10 +34,6 @@ public function create(Request $request, $slug)
 
     try {
         $validated = $this->validateBookingRequest($request);
-        $numberDays = count($validated['chosen_days'] ?? []);
-        $numberWeeks = (int) ($validated['number_weeks'] ?? 0);
-        $numberMonths = (int) ($validated['number_months'] ?? 0);
-
 
 if (isset($validated['error'])) {
     return response()->json([
@@ -177,7 +173,7 @@ foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spot
         $charge_amount = $amount_booked * ($charge->value / 100);
     }
     $amount += $charge_amount;
-      $charge_data[] = ['charge_name' => $charge->name, 'unit_amount' => $charge->value, 'total_amount' => $charge_amount, 'quantity' => 1];
+    $charge_data[] = ['charge_name' => $charge->name, 'amount' => $charge_amount];
      $payment_listing[] = [
         'name' => $charge->name,
         'fee'  => $charge_amount,
@@ -285,11 +281,6 @@ PaymentListing::insert($payment_rows);
             'user_invoice' => "{$invoiceUser->first_name} {$invoiceUser->last_name}",
             'tenant_name' => $tenantData->company_name,
             'book_data' => $bookSpot,
-            'invoice_info'=>[
-                'number_days'=>$numberDays,
-                'number_weeks'=>$numberWeeks,
-                'number_months'=>$numberMonths
-            ],
             'taxes' => $tax_data,
             'charges'=>$charge_data,
             'invoice_ref' => $invoiceRef,
@@ -300,21 +291,9 @@ PaymentListing::insert($payment_rows);
         ];
 
         DB::commit();
-              try {
-    Mail::to($invoiceUser->email)
-        ->send(new BookingInvoiceMail($invoiceData));
-} catch (\Throwable $e) {
-    Log::error('Booking invoice email failed', [
-        'email'       => $invoiceUser->email,
-        'booked_ref'  => $reference,
-        'invoice_ref' => $invoiceRef ?? null,
-        'error'       => $e->getMessage(),
-    ]);
-}
 
         // Send invoice via email
-        //make this to work with queue later
-        
+        Mail::to($invoiceUser->email)->send(new BookingInvoiceMail($invoiceData));
 
         return response()->json([
             'message' => 'Booking successfully created',
@@ -811,62 +790,43 @@ public function update(Request $request, $slug)
 
         $invoiceCont =new InvoiceController();
         $invoiceCont-> cancelInvoice($booking->id);
+        PaymentListing::where('book_spot_id',$booking->id)->update(['payment_completed'=>false]);
         return response()->json(['message' => 'Booking successfully canceled'], 200);
     }
 
-    public function getBookings(Request $request)
+  
+
+public function getBookings(Request $request)
 {
     $validator = Validator::make($request->all(), [
-        'booking_type' => 'required|string|in:valid,all,expired,past',
-        'start_time'   => 'required_with:end_time|date_format:Y-m-d H:i:s',
-        'end_time'     => 'required_with:start_time|date_format:Y-m-d H:i:s|after:start_time',
+        'booking_type' => 'required|string|in:valid,all,expired,past,today',
+        'start_time'   => 'sometimes|date_format:Y-m-d H:i:s',
+        'end_time'     => 'sometimes|date_format:Y-m-d H:i:s|after:start_time',
     ]);
 
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 422);
-        }
+    if ($validator->fails()) {
+        return response()->json(['error' => $validator->errors()], 422);
+    }
 
-        $validated = $validator->validated();
-        $tenantId = Auth::user()->tenant_id;
+    $validated = $validator->validated();
+    $tenantId = Auth::user()->tenant_id;
 
     $query = BookSpot::withTrashed()->with([
-        'spot' => function ($query) {
-            $query->select('id', 'book_status', 'space_id', 'location_id', 'floor_id', 'tenant_id');
-        },
-        'spot.space' => function ($query) {
-            $query->select('id', 'space_name', 'space_fee', 'space_category_id', 'tenant_id');
-        },
-        'spot.space.category' => function ($query) {
-            $query->select('id', 'category', 'tenant_id');
-        },
-        'bookedRef' => function ($query) {
-            $query->select('id', 'booked_ref');
-        }
-    ])
-    ->join('spots', 'book_spots.spot_id', '=', 'spots.id')
-    ->join('spaces', 'spots.space_id', '=', 'spaces.id')
-    ->join('categories', 'spaces.space_category_id', '=', 'categories.id')
-    ->where('spaces.tenant_id', $tenantId)
-    ->select(
-        'book_spots.id as book_spot_id',
-        'book_spots.start_time',
-        'book_spots.expiry_day',
-        'book_spots.fee',
-        'book_spots.user_id',
-        'book_spots.spot_id',
-        'book_spots.created_at',
-        'book_spots.booked_ref_id',
-        'book_spots.chosen_days',
-        'book_spots.deleted_at'
-    );
+        'spot.space.category',
+        'bookedRef'
+    ])->whereHas('spot.space', function ($q) use ($tenantId) {
+        $q->where('tenant_id', $tenantId);
+    });
 
     switch ($validated['booking_type']) {
         case 'valid':
-            $query->where('book_spots.expiry_day', '>=', Carbon::now());
+            $query->where('expiry_day', '>=', Carbon::now())
+                  ->whereNull('deleted_at');
             break;
 
         case 'expired':
-            $query->where('book_spots.expiry_day', '<', Carbon::now());
+            $query->where('expiry_day', '<', Carbon::now())
+                  ->whereNull('deleted_at');
             break;
 
         case 'past':
@@ -875,30 +835,45 @@ public function update(Request $request, $slug)
                     'error' => 'Both start_time and end_time are required for past bookings'
                 ], 422);
             }
-            $query->whereBetween('book_spots.start_time', [
-                $validated['start_time'],
-                $validated['end_time']
-            ]);
+            $start = Carbon::parse($validated['start_time']);
+            $end   = Carbon::parse($validated['end_time']);
+            $query->whereBetween('start_time', [$start, $end])
+                  ->where('start_time', '<=',$end )// Carbon::now())
+                  ->whereNull('deleted_at');
             break;
 
+        case 'today':
+            if (!$request->has('start_time')) {
+                return response()->json([
+                    'error' => "start_time is required for the today's booking"
+                ], 422);
+            }
+    // Always use the date provided by the request
+    $date  = Carbon::parse($validated['start_time']);
+    $start = $date->copy()->startOfDay();
+    $end   = $date->copy()->endOfDay(); 
+
+    $query->whereBetween('created_at', [$start, $end]);
+    break;
+
+
         case 'all':
-            // no additional filter
+            // includes canceled too (because of withTrashed)
             break;
     }
 
-    $bookings = $query->orderByDesc('book_spots.id')->paginate(15);
+    $bookings = $query->orderByDesc('id')->get();
 
-    // Add custom book_status to each booking
-    $bookings->getCollection()->transform(function ($booking) {
+
+    $bookings->transform(function ($booking) {
         $now = Carbon::now();
 
         if ($booking->deleted_at !== null) {
             $booking->book_status = 'canceled';
+            $booking->fee =0;
         } elseif ($now->gt(Carbon::parse($booking->expiry_day))) {
             $booking->book_status = 'completed';
-        } elseif (
-            $now->between(Carbon::parse($booking->start_time), Carbon::parse($booking->expiry_day))
-        ) {
+        } elseif ($now->between(Carbon::parse($booking->start_time), Carbon::parse($booking->expiry_day))) {
             $booking->book_status = 'ongoing';
         } elseif ($now->lt(Carbon::parse($booking->start_time))) {
             $booking->book_status = 'awaiting';
@@ -906,12 +881,11 @@ public function update(Request $request, $slug)
             $booking->book_status = 'unknown';
         }
 
-            return $booking;
-        });
+        return $booking;
+    });
 
-        return response()->json(['data' => $bookings], 200);
-    }
-
+    return response()->json(['data' => $bookings], 200);
+}
 
  
 
