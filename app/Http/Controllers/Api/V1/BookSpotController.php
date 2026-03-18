@@ -23,6 +23,7 @@ use App\Models\Charge;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\BookingInvoiceMail;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Collection;
 
 class BookSpotController extends Controller
 {
@@ -42,7 +43,28 @@ if (isset($validated['error'])) {
     ], 422);
 }
         $loggedUser = Auth::user();
+        $tenant = $this->confirmSpot($validated['spot_id']);
+
+
+if (!$tenant) {
+    return response()->json(['message' => 'Spot not available for this workspace'], 422);
+}
         
+$tenant = $this->getTenantFromSpot($validated['spot_id']);
+
+
+$locationId = $tenant->location_id;  // adjust path if needed
+$displayTz  = $this->getLocationTimezone($locationId);
+    
+    
+        if (!$tenant||!$tenant->space) {
+            return response()->json(['message' => 'Spot not found for this space'], 404);
+        }
+        
+$space_category_time = $tenant->space->category->booking_type;
+ $chosenDays = $this->normalizeChosenDays($validated['chosen_days'], $displayTz);
+ 
+$expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated, $displayTz);
 
         // Early validation
         if ($validated['type'] === 'one-off' && ($validated['number_weeks'] || $validated['number_months'])) {
@@ -53,22 +75,11 @@ if (isset($validated['error'])) {
             return response()->json(['message' => 'Recurrent booking must have weeks or months specified'], 422);
         }
 
-        $tenant = $this->confirmSpot($validated['spot_id']);
-
-
-if (!$tenant) {
-    return response()->json(['message' => 'Spot not available for this workspace'], 422);
-}
+        
 
 // proceed with $tenant if needed...
 
-        $tenant = $this->getTenantFromSpot($validated['spot_id']);
-    
-        if (!$tenant||!$tenant->space) {
-            return response()->json(['message' => 'Spot not found for this space'], 404);
-        }
         
-
         $tenantData = Tenant::with('bankAccounts','locations:id,name,state,address,tenant_id','locations.timezone:tenant_id,location_id,utc_time_zone')->where('slug', $slug)->first();
        $bank = $tenantData->bankAccounts->where('location_id', $tenant->location_id)->first();
        
@@ -79,11 +90,14 @@ if (!$tenant) {
         
         $invoiceUser = User::select('first_name', 'last_name', 'email')->find($validated['user_id']);
 
-        $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
+      
         
         
-        $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
         
+       $schedule = $this->generateSchedule($chosenDays->toArray(), Carbon::parse($expiryDay['expiry_date']));
+       
+        
+         
 
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
         
@@ -146,9 +160,11 @@ if (!$tenant) {
     ->select('spots.*', 'spaces.space_name as space_name', 'spaces.space_category_id', 'spaces.space_fee', 'spaces.min_space_discount_time', 
     'spaces.space_discount', 'categories.id as space_category_id', 'categories.booking_type as booking_type', 'categories.min_duration as category_min_duration') // adjust as needed
     ->first(); 
+    $spot_data->expiry_day = $expiryDay;
 
         
         $amount_booked = $this->calculateBookingAmount($validated, $spot_data, $totalDuration);
+    
         $amount = $amount_booked;
 
         // Apply Taxes
@@ -200,7 +216,7 @@ foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spot
             'type' => $validated['type'],
         ], [
             'chosen_days' => json_encode($chosenDays->toArray()),
-            'expiry_day' => $expiryDay,
+            'expiry_day' => $expiryDay['expiry_date'],
             'start_time' => $chosenDays->first()['start_time'],
             'fee' => $amount,
             'tenant_id' => $tenant->tenant_id,
@@ -214,7 +230,7 @@ foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spot
         'day' => $day['day'],
         'start_time' => $day['start_time'],
         'end_time' => $day['end_time'],
-        'expiry_day' => $expiryDay,
+        'expiry_day' => $expiryDay['expiry_date'],
         'booked_spot_id' => $bookSpot->id,
         'created_at' => now(),
         'updated_at' => now(),
@@ -256,7 +272,7 @@ ReservedSpots::insert($reservedSpotsData);
         SpacePaymentModel::where('payment_ref', $reference)->update(['invoice_ref' => $invoiceRef]);
         $chosenDays = json_decode($bookSpot->chosen_days, true);
         // Generate Schedule
-        $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay));
+        
         $payment_rows =collect($payment_listing)->map(fn($item) => [
             'payment_name'       => $item['name'],
             'fee'                => $item['fee'],
@@ -345,8 +361,8 @@ private function validateBookingRequest(Request $request)
         'spot_id' => 'required|numeric|exists:spots,id',
         'user_id' => 'required|numeric|exists:users,id',
         'type' => 'required|in:one-off,recurrent',
-        'number_weeks' => 'nullable|numeric|min:0|max:3',
-        'number_months' => 'nullable|numeric|min:0|max:12',
+        'number_weeks' => 'required|numeric|min:0|max:3',
+        'number_months' => 'required|numeric|min:0|max:12',
         'book_spot_id'=>'nullable|numeric|min:0',
         'chosen_days.*.day' => 'required|string|in:sunday,monday,tuesday,wednesday,thursday,friday,saturday',
         'chosen_days.*.start_time' => 'required|date_format:Y-m-d H:i:s|after_or_equal:now',
@@ -369,33 +385,90 @@ private function getTenantFromSpot($spotId)
         return Spot::with(['space.category'])->find($spotId);
     
 }
-private function normalizeChosenDays(array $days)
+private function normalizeChosenDays(array $days, string $timezone): Collection
 {
-    return collect($days)->map(function ($day) {
+    return collect($days)->map(function ($day) use ($timezone) {
         return [
-            'day' => strtolower($day['day']),
-            'start_time' => Carbon::parse($day['start_time']),
-            'end_time' => Carbon::parse($day['end_time']),
+            'day'        => strtolower($day['day']),
+            'start_time' => Carbon::parse($day['start_time'], $timezone)->utc(),
+            'end_time'   => Carbon::parse($day['end_time'],   $timezone)->utc(),
         ];
     });
 }
 
 
 
-private function calculateExpiryDate($type, $chosenDays, $validated)
+
+private function calculateExpiryDate($type = null, Collection $chosenDays, array $validated, string $displayTz ): array
 {
-    $lastDay = $type === 'recurrent' ? $chosenDays->first() : $chosenDays->last();
+    if ($chosenDays->isEmpty()) {
+        return [];
+    }
 
-    $weeks = (int) ($validated['number_weeks'] ?? 0);
-    $months = (int) ($validated['number_months'] ?? 0);
+    // ─────────────────────────────────────────────
+    // 1. Get TRUE latest end time (UTC-safe)
+    // ─────────────────────────────────────────────
+    $baseDate = $chosenDays
+        ->pluck('end_time')
+        ->sortBy(fn($dt) => $dt->timestamp)
+        ->last()
+        ->copy(); // ✅ guaranteed latest
 
-    return $lastDay['end_time']
-        ->copy()
-        ->addWeeks($weeks)
-        ->addMonths($months);
+    // ─────────────────────────────────────────────
+    // 2. Hours & days per cycle
+    // ─────────────────────────────────────────────
+    $hoursPerCycle = $chosenDays->sum(function ($day) {
+        return max(1, ceil($day['start_time']->diffInMinutes($day['end_time']) / 60));
+    });
+
+    $daysPerCycle = $chosenDays->count();
+
+    // ─────────────────────────────────────────────
+    // 3. Multipliers
+    // ─────────────────────────────────────────────
+    $weeksToAdd  = max((int) ($validated['number_weeks']  ?? 0), 0);
+    $monthsToAdd = max((int) ($validated['number_months'] ?? 0), 0);
+
+    // If nothing provided, default to 1 week cycle
+    if ($weeksToAdd === 0 && $monthsToAdd === 0) {
+        $weeksToAdd = 1;
+    }
+
+    // ─────────────────────────────────────────────
+    // 4. Totals
+    // ─────────────────────────────────────────────
+    $effectiveWeeks = $monthsToAdd > 0 ? $monthsToAdd * 4 : $weeksToAdd;
+
+    $totalDays  = $daysPerCycle * $effectiveWeeks;
+    $totalHours = $hoursPerCycle * $effectiveWeeks;
+
+    // ─────────────────────────────────────────────
+    // 5. Calculate expiry (PURE UTC)
+    // ─────────────────────────────────────────────
+    $endDate = $baseDate->copy()->setTimezone($displayTz);
+    // $endDateInDisplayTz = $endDate->copy()
+
+    if ($weeksToAdd > 0) {
+        $endDate->addWeeks($weeksToAdd); // ✅ fixed
+    }
+
+    if ($monthsToAdd > 0) {
+        $endDate->addMonths($monthsToAdd);
+    }
+
+    // ─────────────────────────────────────────────
+    // 6. Return
+    // ─────────────────────────────────────────────
+    return [
+        'expiry_date'     => $endDate, // ✅ UTC
+        'hours_per_cycle' => $hoursPerCycle,
+        'days_per_cycle'  => $daysPerCycle,
+        'number_weeks'    => $weeksToAdd,
+        'number_months'   => $monthsToAdd,
+        'total_days'      => $totalDays,
+        'total_hours'     => $totalHours,
+    ];
 }
-
-
 private function getTenantAvailability($slug, $chosenDays)
 {
     
@@ -446,65 +519,71 @@ private function areChosenTimesValid($chosenDays, $availability)
 
 
 
-private function hasConflicts($spotId, $chosenDays)
+private function hasConflicts(int $spotId, Collection $chosenDays, ?int $excludeBookSpotId = null): bool
 {
-    $bookings = BookSpot::where('spot_id', $spotId)
-        ->where('expiry_day', '>=', now())
-        ->whereNull('deleted_at')
-        ->pluck('chosen_days'); // fetch only the chosen_days column
+    foreach ($chosenDays as $inputDay) {
+        $dayName = strtolower($inputDay['day']);
+        $inputStart = Carbon::parse($inputDay['start_time']);
+        $inputEnd   = Carbon::parse($inputDay['end_time']);
 
-    foreach ($bookings as $daysJson) {
-        $bookedSlots = json_decode($daysJson, true) ?? [];
+        // Only fetch bookings that include this day and are still active
+        $bookings = BookSpot::where('spot_id', $spotId)
+            ->where('expiry_day', '>=', now())
+            ->whereNull('deleted_at')
+            ->when($excludeBookSpotId, fn($q) => $q->where('id', '!=', $excludeBookSpotId))
+            ->whereJsonContains('chosen_days->$.day', $dayName)
+            ->pluck('chosen_days');
 
-        foreach ($chosenDays as $inputDay) {
-            $inputDayName = strtolower($inputDay['day']);
-            $inputStart   = Carbon::parse($inputDay['start_time']);
-            $inputEnd     = Carbon::parse($inputDay['end_time']);
+        foreach ($bookings as $daysJson) {
+            $bookedSlots = json_decode($daysJson, true) ?? [];
 
             foreach ($bookedSlots as $slot) {
                 $bookedDay   = strtolower($slot['day']);
                 $bookedStart = Carbon::parse($slot['start_time']);
                 $bookedEnd   = Carbon::parse($slot['end_time']);
 
-                if (
-                    $inputDayName === $bookedDay &&
+                // Check overlap
+                if ($dayName === $bookedDay &&
                     $bookedStart < $inputEnd &&
                     $bookedEnd > $inputStart
                 ) {
-                    return true; //stop at first conflict 
+                    return true; // conflict found
                 }
             }
         }
     }
 
-    return false;
+    return false; // no conflicts
 }
 
 
 
 
 
-
-private function handleConflictResponse($spotId, $chosenDays)
+private function handleConflictResponse(int $spotId, array $chosenDays,$timezone)
 {
+    // Normalize chosen days
     $chosenDays = collect($chosenDays)->map(function ($day) {
         return [
-            'day' => Carbon::parse($day['day'])->format('l'),
+            'day' => strtolower(Carbon::parse($day['day'])->format('l')),
             'start_time' => Carbon::parse($day['start_time']),
             'end_time' => Carbon::parse($day['end_time']),
         ];
     });
 
     $conflictDetails = collect();
-    $conflicts = BookSpot::where('spot_id', $spotId)
+
+    // Fetch only relevant active bookings
+    $bookings = BookSpot::where('spot_id', $spotId)
         ->where('expiry_day', '>=', now())
+        ->whereNull('deleted_at')
         ->get();
 
-    foreach ($conflicts as $conflict) {
-        $bookedSlots = collect(json_decode($conflict->chosen_days, true));
+    foreach ($bookings as $booking) {
+        $bookedSlots = collect(json_decode($booking->chosen_days, true) ?? []);
 
         foreach ($chosenDays as $chosenSlot) {
-            $chosenDay = strtolower($chosenSlot['day']);
+            $chosenDay = $chosenSlot['day'];
             $chosenStart = $chosenSlot['start_time'];
             $chosenEnd = $chosenSlot['end_time'];
 
@@ -513,8 +592,8 @@ private function handleConflictResponse($spotId, $chosenDays)
                 $bookedStart = Carbon::parse($bookedSlot['start_time']);
                 $bookedEnd = Carbon::parse($bookedSlot['end_time']);
 
-                if (
-                    $chosenDay === $bookedDay &&
+                // Check for overlap
+                if ($chosenDay === $bookedDay &&
                     $bookedStart < $chosenEnd &&
                     $bookedEnd > $chosenStart
                 ) {
@@ -529,6 +608,7 @@ private function handleConflictResponse($spotId, $chosenDays)
     }
 
     if ($conflictDetails->isNotEmpty()) {
+        // Group by day and format messages
         $grouped = $conflictDetails->groupBy('day')->map(function ($conflicts, $day) {
             return [
                 'day' => $day,
@@ -600,49 +680,66 @@ private function isInvalidRecurrentBooking($validated, $tenant)
            $tenant->booking_type === 'monthly';
 }
 
-   private function calculateBookingAmount($validated, $tenant, $totalDuration)
+
+
+private function calculateBookingAmount($validated, $tenant, $totalDuration)
 {
-    $numberWeeks = max((int) ($validated['number_weeks'] ?? 1), 1); // ensure at least 1
-    $numberMonths = max((int) ($validated['number_months'] ?? 0), 1);
-    $numberDays = count($validated['chosen_days'] ?? []);
+    // Extract expiry data safely
+    $expiryData = $tenant->expiry_day ?? [];
 
-    $discount = $tenant->space_discount > 0 ? $tenant->space_discount : 0;
-    $spaceFee = $tenant->space->space_fee;
-    $bookingType = $tenant->space->category->booking_type;
-    $minDiscountTime = $tenant->min_space_discount_time;
+    $spaceFee = $tenant->space_fee ?? ($tenant->space->space_fee ?? 0);
+    $bookingType = strtolower($tenant->booking_type ?? ($tenant->space->category->booking_type ?? 'hourly'));
 
-    $total = 0;
+    // Discount fields
+    $discount        = $tenant->space_discount ?? ($tenant->space->space_discount ?? 0);
+    $minDiscountTime = $tenant->min_space_discount_time ?? ($tenant->space->min_space_discount_time ?? 0);
+
+    // Precomputed values from your expiry function
+    $numberWeeks  = (int) ($expiryData['number_weeks'] ?? 0);
+    $numberMonths = (int) ($expiryData['number_months'] ?? 0);
+    $totalDays    = (int) ($expiryData['total_days'] ?? 0);
+    $totalHours   = (float) ($expiryData['total_hours'] ?? $totalDuration);
+
     $units = 0;
 
     switch ($bookingType) {
+
         case 'monthly':
-            $units = $numberMonths;
-            $total = $spaceFee * $units;
+            $units = max(1, $numberMonths ?: ceil($numberWeeks / 4));
             break;
 
         case 'weekly':
-            $units = $numberWeeks;
-            $total = $spaceFee * $units;
-            break;
-
-        case 'hourly':
-            $units = $totalDuration;
-            $total = $spaceFee * $units * $numberWeeks;
+            $units = max(1, $numberWeeks);
             break;
 
         case 'daily':
-            $units = $numberDays;
-            $total = $spaceFee * $units;
+            $units = max(1, $totalDays);
+            break;
+
+        case 'hourly':
+            $units = max(1, $totalHours);
             break;
 
         default:
             return 0;
     }
 
-    if ($discount && $units >= $minDiscountTime) {
+    $total = $spaceFee * $units;
+
+    // Apply discount
+    if ($discount > 0 && $units >= $minDiscountTime) {
         $total -= $total * ($discount / 100);
     }
-    return $total;
+
+    Log::info('calculateBookingAmount result', [
+        'booking_type'   => $bookingType,
+        'space_fee'      => $spaceFee,
+        'units'          => $units,
+        'total_duration' => $totalDuration,
+        'final_amount'   => $total,
+    ]);
+
+    return max(0, $total);
 }
 
 
@@ -659,12 +756,14 @@ public function update(Request $request, $slug)
             ->firstOrFail();
         // Get tenant from spot
         $tenant = $this->getTenantFromSpot($validated['spot_id']);
+        $locationId = $tenant->location_id;  // adjust path if needed
+        $displayTz  = $this->getLocationTimezone($locationId);
         if (!$tenant) {
             return response()->json(['message' => 'Spot not found'], 404);
         }
         // Normalize chosen days
-        $chosenDays = $this->normalizeChosenDays($validated['chosen_days']);
-        $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated);
+        $chosenDays = $this->normalizeChosenDays($validated['chosen_days'], $displayTz );
+        $expiryDay = $this->calculateExpiryDate($validated['type'], $chosenDays, $validated,$displayTz);
 
         // Check tenant availability
         $tenantAvailability = $this->getTenantAvailability($slug, $chosenDays);
@@ -686,7 +785,7 @@ public function update(Request $request, $slug)
         // Check for conflicts, excluding the current booking
         if ($this->hasConflicts($validated['spot_id'], $chosenDays, $booking->id)) {
         
-            return $this->handleConflictResponse($validated['spot_id'], $chosenDays);
+            return $this->handleConflictResponse($validated['spot_id'], $chosenDays, $displayTz);
         }
 
         // Validate recurrent booking
@@ -701,6 +800,7 @@ public function update(Request $request, $slug)
 
         // Calculate total duration and amount
         $totalDuration = $this->calculateTotalDuration($chosenDays, $tenantAvailability);
+         $tenant->expiry_day = $expiryDay;
         $amount = $this->calculateBookingAmount($validated, $tenant, $totalDuration);
 
 
@@ -722,7 +822,7 @@ public function update(Request $request, $slug)
                 'booked_by_user' => $loggedUser->id,
                 'type' => $validated['type'],
                 'chosen_days' => json_encode($chosenDays->toArray()),
-                'expiry_day' => $expiryDay,
+                'expiry_day' => $expiryDay['expiry_date'],
             ]);
 
             // Delete old ReservedSpots and insert new ones
@@ -734,12 +834,13 @@ public function update(Request $request, $slug)
                     'day' => $day['day'],
                     'start_time' => $day['start_time'],
                     'end_time' => $day['end_time'],
-                    'expiry_day' => $expiryDay,
+                    'expiry_day' =>$expiryDay['expiry_date'],
                     'created_at' => now(),
                     'updated_at' => now(),
                     'booked_spot_id' => $booking->id,
                 ];
             })->toArray();
+        
             ReservedSpots::insert($reservedSpotsData);
 
             // Update SpacePaymentModel
@@ -1068,6 +1169,7 @@ public function getBookings(Request $request)
     }
     public function getSingle(Request $request)
 {
+
     try {
         // Validate request
         $validated = Validator::make($request->all(), [
@@ -1232,6 +1334,76 @@ public function getFreeSpotsCateg(Request $request, $tenant_slug, $location_id =
 
     return response()->json(['data' => $spotsByCategory], 200);
 }
+private function offsetToTimezone(string $offset): string
+{
+    // Normalize input, ensure it is in ±HH:MM format
+    $offset = trim($offset);
+    if (!preg_match('/^[+-]\d{2}:\d{2}$/', $offset)) {
+        return 'UTC';
+    }
 
+    // Predefined mapping of offsets to IANA timezones
+    $offsetMap = [
+        '-12:00' => 'Etc/GMT+12',
+        '-11:00' => 'Etc/GMT+11',
+        '-10:00' => 'Etc/GMT+10',
+        '-09:00' => 'Etc/GMT+9',
+        '-08:00' => 'Etc/GMT+8',
+        '-07:00' => 'Etc/GMT+7',
+        '-06:00' => 'Etc/GMT+6',
+        '-05:00' => 'America/New_York',   // EST/EDT
+        '-04:00' => 'America/Halifax',    // AST/ADT
+        '-03:00' => 'America/Argentina/Buenos_Aires',
+        '-02:00' => 'Etc/GMT+2',
+        '-01:00' => 'Etc/GMT+1',
+        '+00:00' => 'UTC',
+        '+01:00' => 'Africa/Lagos',       // WAT
+        '+02:00' => 'Africa/Cairo',       // EET
+        '+03:00' => 'Africa/Nairobi',     // EAT
+        '+03:30' => 'Asia/Tehran',
+        '+04:00' => 'Asia/Dubai',
+        '+04:30' => 'Asia/Kabul',
+        '+05:00' => 'Asia/Karachi',
+        '+05:30' => 'Asia/Kolkata',
+        '+05:45' => 'Asia/Kathmandu',
+        '+06:00' => 'Asia/Dhaka',
+        '+06:30' => 'Asia/Yangon',
+        '+07:00' => 'Asia/Bangkok',
+        '+08:00' => 'Asia/Singapore',
+        '+09:00' => 'Asia/Tokyo',
+        '+09:30' => 'Australia/Darwin',
+        '+10:00' => 'Australia/Sydney',
+        '+11:00' => 'Pacific/Guadalcanal',
+        '+12:00' => 'Pacific/Auckland',
+        '+13:00' => 'Pacific/Tongatapu',
+        '+14:00' => 'Pacific/Kiritimati',
+    ];
+
+    if (isset($offsetMap[$offset])) {
+        return $offsetMap[$offset];
+    }
+
+    // Fallback: Try to find closest timezone by offset using Carbon
+    foreach (timezone_identifiers_list() as $tz) {
+        $now = Carbon::now($tz);
+        $tzOffset = $now->format('P'); // ±HH:MM
+        if ($tzOffset === $offset) {
+            return $tz;
+        }
+    }
+
+    return 'UTC'; // ultimate fallback
+}
+private function getLocationTimezone(int $locationId): string
+{
+    $tzRecord = TimeZoneModel::where('location_id', $locationId)
+        ->value('utc_time_zone');
+
+    if (!$tzRecord) {
+        return 'UTC';
+    }
+
+    return $this->offsetToTimezone($tzRecord);
+}
 
 }

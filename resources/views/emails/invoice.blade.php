@@ -59,106 +59,79 @@
             </tr>
         </thead>
         <tbody>
-        @if (!empty($chosenDays))
-            @foreach ($chosenDays as $day)
-                <tr>
-                    <td>
-                        <strong>Days & Time:</strong><br>
-                        @php
-                            $tz = $invoice['time_zone'] ?? 'UTC';
 
-                            $start = \Carbon\Carbon::parse($day['start_time'])->setTimezone($tz);
-                            $end   = \Carbon\Carbon::parse($day['end_time'])->setTimezone($tz);
+@php
+$type = $invoice['space_booking_type'] ?? 'hourly';
+$price = (float) ($invoice['space_price'] ?? 0);
+@endphp
 
-                            // Hourly duration (rounded up)
-                            $hourDuration = max(1, ceil($start->diffInMinutes($end) / 60));
-                        @endphp
+{{-- HOURLY BOOKINGS (list each slot) --}}
+@if ($type === 'hourly' && !empty($chosenDays))
 
-                        {{ ucfirst($day['day']) }}
-                        ({{ \Carbon\Carbon::parse($day['date'])->format('F j, Y') }}):<br>
-                        {{ $start->format('g:i A') }} - {{ $end->format('g:i A') }}<br>
+    @foreach ($chosenDays as $day)
 
-                        <strong>Duration:</strong>
-                        {{ $hourDuration }} {{ Str::plural('hour', $hourDuration) }}
-                    </td>
+    @php
+        $tz = $invoice['time_zone'] ?? 'UTC';
 
-                    <td>
-                        Reserved Spot -<br>
-                        {{ $invoice['space_category'] ?? 'N/A' }}
-                    </td>
+        $start = \Carbon\Carbon::parse($day['start_time'])->setTimezone($tz);
+        $end   = \Carbon\Carbon::parse($day['end_time'])->setTimezone($tz);
 
-                    <td class="text-right">
-                        &#8358;
-                        @php
-                            $price = (float) ($invoice['space_price'] ?? 0);
-                            $type  = $invoice['space_booking_type'] ?? 'hourly';
-                            $info  = $invoice['invoice_info'] ?? [];
+        $hourDuration = max(1, ceil($start->diffInMinutes($end) / 60));
+        $amount = $price * $hourDuration;
+    @endphp
 
-                            $days   = (int) ($info['number_days'] ?? 1);
-                            $weeks  = (int) ($info['number_weeks'] ?? 1);
-                            $months = (int) ($info['number_months'] ?? 1);
+    <tr>
+        <td>
+            <strong>Days & Time:</strong><br>
 
-                            switch ($type) {
-                                case 'hourly':
-                                    $unitCount = $hourDuration;
-                                    $unitLabel = Str::plural('hour', $unitCount);
-                                    break;
-                                case 'daily':
-                                    $unitCount = max(1, $days);
-                                    $unitLabel = Str::plural('day', $unitCount);
-                                    break;
-                                case 'weekly':
-                                    $unitCount = max(1, $weeks);
-                                    $unitLabel = Str::plural('week', $unitCount);
-                                    break;
-                                case 'monthly':
-                                    $unitCount = max(1, $months);
-                                    $unitLabel = Str::plural('month', $unitCount);
-                                    break;
-                                default:
-                                    $unitCount = 1;
-                                    $unitLabel = 'unit';
-                            }
+            {{ ucfirst($day['day']) }}
+            ({{ \Carbon\Carbon::parse($day['date'])->format('F j, Y') }}):<br>
 
-                            $amount = $price * $unitCount;
-                        @endphp
+            {{ $start->format('g:i A') }} - {{ $end->format('g:i A') }}<br>
 
-                        {{ number_format($amount, 2) }}
-                        <br>
-                        <small class="text-muted">
-                            {{ $unitCount }} {{ $unitLabel }}
-                        </small>
-                    </td>
-                </tr>
-            @endforeach
-        @else
-            <tr>
-                <td colspan="3" class="text-center">N/A</td>
-            </tr>
-        @endif
+            <strong>Duration:</strong>
+            {{ $hourDuration }} {{ Str::plural('hour', $hourDuration) }}
+        </td>
 
-        {{-- Taxes --}}
-        @if (!empty($invoice['taxes']))
-            @foreach ($invoice['taxes'] as $tax)
-                <tr>
-                    <td>Tax:</td>
-                    <td>{{ ucfirst($tax['tax_name'] ?? 'Tax') }}</td>
-                    <td class="text-right">&#8358;{{ number_format($tax['amount'], 2) }}</td>
-                </tr>
-            @endforeach
-        @endif
+        <td>
+            Reserved Spot -<br>
+            {{ $invoice['space_category'] ?? 'N/A' }}
+        </td>
 
-        {{-- Charges --}}
-        @if (!empty($invoice['charges']))
-            @foreach ($invoice['charges'] as $charge)
-                <tr>
-                    <td>Charges:</td>
-                    <td>{{ ucfirst($charge['charge_name'] ?? 'Fee') }}({{ number_format($charge['unit_amount'], 2) }}) x {{ $charge['quantity'] ?? 1 }}</td>
-                    <td class="text-right">&#8358;{{ number_format($charge['total_amount'], 2) }}</td>
-                </tr>
-            @endforeach
-        @endif
-        </tbody>
+        <td class="text-right">
+            &#8358;{{ number_format($amount,2) }}
+            <br>
+            <small class="text-muted">
+                {{ $hourDuration }} {{ Str::plural('hour', $hourDuration) }}
+            </small>
+        </td>
+    </tr>
+
+    @endforeach
+
+
+{{-- NON HOURLY BOOKINGS (single row) --}}
+@else
+
+@php
+    $total = $invoice['total_price'] ?? 0;
+@endphp
+
+<tr>
+    <td>
+        {{ ucfirst($type) }} Booking
+    </td>
+
+    <td>
+        Reserved Spot - {{ $invoice['space_category'] ?? 'N/A' }}
+    </td>
+
+    <td class="text-right">
+        
+    </td>
+</tr>
+
+@endif
 
         <tfoot>
             <tr>

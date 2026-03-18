@@ -28,6 +28,7 @@ class DynamicInvoiceController extends Controller
     //
     public function create(Request $request, $slug)
 {
+
     DB::beginTransaction();
 
    try {
@@ -41,6 +42,7 @@ if (isset($validated['error'])) {
     ], 422);
 }
         $loggedUser = Auth::user();
+        
         
 
         // Early validation
@@ -150,6 +152,7 @@ if (!$tenant) {
         
         $amount_booked = $this->calculateBookingAmount($validated, $spot_data, $totalDuration);
         $amount = $amount_booked;
+        
 
 /// Apply Taxes
 $tax_data = [];
@@ -179,6 +182,7 @@ foreach (TaxModel::where('tenant_id', $tenant->tenant_id)->get() as $tax) {
     }
 }
 
+
 // VAT on main booking
 $vatRate = $vat ? ($vat['percentage'] / 100) : 0;
 
@@ -193,7 +197,7 @@ if ($vatRate > 0) {
 
     $payment_listing[] = [
         'charge_name' => $tenant->space->category->category.'(VAT)',
-        'amount'  => $bookingVat,
+        'unit_amount'  => $bookingVat,
     ];
 }
 
@@ -211,9 +215,10 @@ foreach (Charge::where('tenant_id', $tenant->tenant_id)
         'amount'      => $charge_amount
     ];
 
+
     $payment_listing[] = [
         'charge_name' => $charge->name,
-        'amount'  => $charge_amount,
+        'unit_amount'  => $charge_amount,
     ];
 }
 
@@ -224,14 +229,15 @@ $extra_items = [];
 
 
 
-
+ $vat_amount = 0;
 foreach ($validated['item_name'] as $index => $name) {
+    
     $unit_price = (float) $validated['item_charge'][$index];
     $quantity   = (int) $validated['item_number'][$index];
 
     $subtotal   = $unit_price * $quantity;
-    $vat_amount = 0;
-    //$subtotal * $vatRate;
+   
+    $vat_amount =$subtotal * $vatRate;
     $total      = $subtotal + $vat_amount;
 
     $extra_charge    += $total;
@@ -248,16 +254,17 @@ foreach ($validated['item_name'] as $index => $name) {
 
     $payment_listing[] = [
         'charge_name' => "{$name} (x{$quantity})",
-        'amount'  => $subtotal,
+        'unit_amount'  => $subtotal,
     ];
 
     if ($vat_amount > 0) {
         $payment_listing[] = [
             'charge_name' => "{$name} VAT",
-            'amount'  => $vat_amount,
+            'unit_amount'  => $vat_amount,
         ];
     }
 }
+
 
 if ($extra_vat_total > 0) {
     $tax_data[] = [
@@ -267,8 +274,6 @@ if ($extra_vat_total > 0) {
 }
 
 $amount += $extra_charge;
-
-
 
 
         $reference = (new BookedRef)->generateRef($slug);
@@ -350,7 +355,7 @@ ReservedSpots::insert($reservedSpotsData);
         $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay));
         $payment_rows =collect($payment_listing)->map(fn($item) => [
             'payment_name'       => $item['charge_name'],
-            'fee'                => $item['amount'],
+            'fee'                => $item['unit_amount'],
             'book_spot_id'       => $bookSpot->id,
             'tenant_id'          => $tenant->tenant_id,
             'payment_by_user_id' => $validated['user_id'],
@@ -380,6 +385,7 @@ PaymentListing::insert($payment_rows);
             'time_zone' => optional($tenantData->locations->firstWhere('id', $tenant->location_id)?->timeZone)->utc_time_zone,
 
         ];
+        
 
         DB::commit();
 

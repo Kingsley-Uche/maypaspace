@@ -166,47 +166,120 @@ class UserFunctionsController extends Controller
         return response()->json(['message'=> 'Something went wrong, Contact us for help'],500);
     }
 
-    public function viewUsers(Request $request, $tenant_slug){
-        $user = $request->user();
-
-        $tenant = Tenant::where('slug', $tenant_slug)->first();
-
-        if (!$tenant) {
-            return response()->json(['message' => 'Tenant not found'], 404);
-        }
-
-        $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,view_user,view_admin'])->get();
-
-        $view_admin = $userType[0]['user_type']['view_admin'];
-        $view_user = $userType[0]['user_type']['view_user'];
-
-        if($user->user_type_id == 1){
-            $users = User::where('tenant_id', $tenant->id)->with('user_type')->paginate(100); 
-
-            return response()->json(['data'=> $users], 200);
-        }
-
-        if($view_user == 'yes' && $view_admin !== 'yes'){
-            $users = User::where('tenant_id', $tenant->id)->where('user_type_id', 3)->with('user_type')->paginate(100);
-
-            return response()->json(['data'=> $users], 200);
-        }
-
-        if($view_user !== 'yes' && $view_admin == 'yes'){
-            $users = User::where('tenant_id', $tenant->id)->whereNotIn('user_type_id', [1])->whereNotIn('user_type_id',[2])->with('user_type')->paginate(100);
-
-            return response()->json(['data'=> $users], 200);
-        }
-
-        if($view_user == 'yes' && $view_admin == 'yes'){
+    // public function viewUsers(Request $request, $tenant_slug){
+    //     $user = $request->user();
     
-            $users = User::where('tenant_id', $tenant->id)->whereNotIn('user_type_id', [1])->with('user_type')->paginate(100);
 
-            return response()->json(['data'=> $users], 200);
-        }
+    //     $tenant = Tenant::where('slug', $tenant_slug)->first();
 
-        return response()->json(['message'=> 'You are not authorized'], 403);
+    //     if (!$tenant) {
+    //         return response()->json(['message' => 'Tenant not found'], 404);
+    //     }
+
+    //     $userType = User::where('id', $user->id)->select('id', 'user_type_id')->with(['user_type:id,view_user,view_admin'])->get();
+        
+    //     if(empty($userType)){
+    //     return response()->json(['data'=>'','message'=>'you are not authorized to access'], 422);    
+            
+    //     }
+
+    //     $view_admin = $userType[0]['user_type']['view_admin'];
+    //     $view_user = $userType[0]['user_type']['view_user'];
+
+    //     if($user->user_type_id == 1){
+    //         $users = User::where('tenant_id', $tenant->id)->with('user_type')->paginate(100); 
+
+    //         return response()->json(['data'=> $users], 200);
+    //     }
+
+    //     if($view_user == 'yes' && $view_admin !== 'yes'){
+    //         $users = User::where('tenant_id', $tenant->id)->where('user_type_id', 3)->with('user_type')->paginate(100);
+
+    //         return response()->json(['data'=> $users], 200);
+    //     }
+
+    //     if($view_user !== 'yes' && $view_admin == 'yes'){
+    //         $users = User::where('tenant_id', $tenant->id)->whereNotIn('user_type_id', [1])->whereNotIn('user_type_id',[2])->with('user_type')->paginate(100);
+
+    //         return response()->json(['data'=> $users], 200);
+    //     }
+
+    //     if($view_user == 'yes' && $view_admin == 'yes'){
+    
+    //         $users = User::where('tenant_id', $tenant->id)->whereNotIn('user_type_id', [1])->with('user_type')->paginate(100);
+
+    //         return response()->json(['data'=> $users], 200);
+    //     }
+
+    //     return response()->json(['message'=> 'You are not authorized'], 403);
+    // }
+    public function viewUsers(Request $request, $tenant_slug)
+{
+    $user = $request->user();
+
+    $tenant = Tenant::where('slug', $tenant_slug)->first();
+
+    if (!$tenant) {
+        return response()->json(['message' => 'Tenant not found'], 404);
     }
+
+    // Get single user with user_type relation
+    $userType = User::where('id', $user->id)
+        ->select('id', 'user_type_id')
+        ->with(['user_type:id,view_user,view_admin'])
+        ->first(); // ✅ fetch single model
+
+    // Check if userType exists
+    if (!$userType || !$userType->user_type) {
+        return response()->json([
+            'data' => '',
+            'message' => 'You are not authorized to access'
+        ], 422);
+    }
+
+    $view_admin = $userType->user_type->view_admin;
+    $view_user  = $userType->user_type->view_user;
+
+    // Super admin can see all users
+    if ($user->user_type_id == 1) {
+        $users = User::where('tenant_id', $tenant->id)
+            ->with('user_type')
+            ->paginate(100);
+
+        return response()->json(['data'=> $users], 200);
+    }
+
+    // Only view regular users
+    if ($view_user === 'yes' && $view_admin !== 'yes') {
+        $users = User::where('tenant_id', $tenant->id)
+            ->where('user_type_id', 3)
+            ->with('user_type')
+            ->paginate(100);
+
+        return response()->json(['data'=> $users], 200);
+    }
+
+    // Only view admin users
+    if ($view_user !== 'yes' && $view_admin === 'yes') {
+        $users = User::where('tenant_id', $tenant->id)
+            ->whereNotIn('user_type_id', [1,2])
+            ->with('user_type')
+            ->paginate(100);
+        return response()->json(['data'=> $users], 200);
+    }
+
+    // Can view both admin and regular users
+    if ($view_user === 'yes' && $view_admin === 'yes') {
+        $users = User::where('tenant_id', $tenant->id)
+            ->whereNotIn('user_type_id', [1])
+            ->with('user_type')
+            ->paginate(100);
+
+        return response()->json(['data'=> $users], 200);
+    }
+
+    return response()->json(['message'=> 'You are not authorized'], 403);
+}
 
     public function viewUser(Request $request, $tenant_slug, $id){
         $user = $request->user();

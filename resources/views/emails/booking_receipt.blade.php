@@ -130,7 +130,7 @@
                                 {{ number_format($receiptData['space_price'] * $duration, 2) }}
                                 ({{ ucwords($receiptData['space_booking_type']) ?? 'N/A' }})
                             @else
-                                {{ number_format($receiptData['space_price'], 2) }}
+                
                             @endif
                         </td>
                     </tr>

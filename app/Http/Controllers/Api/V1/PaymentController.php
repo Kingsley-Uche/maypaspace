@@ -360,7 +360,7 @@ foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spac
                 'booked_ref_id' => $bookingRef->id,
                 'number_weeks' => $validated['number_weeks'] ?? 1,
                 'number_months' => $validated['number_months'] ?? 1,
-                'expiry_day' => $expiryDay,
+                'expiry_day' =>$expiryDay['expiry_date'],
                 'start_time' => $chosenDays->first()['start_time'],
                 'tenant_id'=>$tenant->tenant_id,
  ]);
@@ -373,7 +373,7 @@ foreach (Charge::where('tenant_id', $tenant->tenant_id)->where('space_id', $spac
                     'day' => $day['day'],
                     'start_time' => $day['start_time'],
                     'end_time' => $day['end_time'],
-                    'expiry_day' => $expiryDay,
+                    'expiry_day' =>$expiryDay['expiry_date'],
                     'created_at' => now(),
                     'updated_at' => now(),
                     'booked_spot_id' => $bookSpot->id,
@@ -424,7 +424,7 @@ if (!$updated) {
 
         $chosenDays = json_decode($bookSpot->chosen_days, true);
         // Generate Schedule
-        $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay));
+        $schedule = $this->generateSchedule($chosenDays, Carbon::parse($expiryDay['expiry_date']));
 
 
             
@@ -536,21 +536,46 @@ if (!$updated) {
             ];
         });
     }
-
     /**
      * Calculate expiry date
      */
-    private function calculateExpiryDate($type, $chosenDays, $validated)
-    {
-        $lastDay = $type === 'recurrent' ? $chosenDays->first() : $chosenDays->last();
-        $weeks = (int) ($validated['number_weeks'] ?? 0);
-        $months = (int) ($validated['number_months'] ?? 0);
 
-        return $lastDay['end_time']
-            ->copy()
-            ->addWeeks($weeks)
-            ->addMonths($months);
+private function calculateExpiryDate($type, $chosenDays, $validated)
+{
+    if ($chosenDays->isEmpty()) {
+        return null;
     }
+
+    $startDate = Carbon::parse(
+        $chosenDays->first()['day'] . ' ' . $chosenDays->first()['start_time']
+    );
+
+    $endDate = Carbon::parse(
+        $chosenDays->last()['day'] . ' ' . $chosenDays->last()['end_time']
+    );
+
+    // Calculate differences
+    $numberWeeks  = $startDate->diffInWeeks($endDate);
+    $numberMonths = $startDate->diffInMonths($endDate);
+
+    return [
+        'expiry_date'   => $endDate,
+        'number_weeks'  => ceil($numberWeeks),
+        'number_months' => ceil($numberMonths)
+    ];
+}
+    
+    // private function calculateExpiryDate($type, $chosenDays, $validated)
+    // {
+    //     $lastDay = $type === 'recurrent' ? $chosenDays->first() : $chosenDays->last();
+    //     $weeks = (int) ($validated['number_weeks'] ?? 0);
+    //     $months = (int) ($validated['number_months'] ?? 0);
+
+    //     return $lastDay['end_time']
+    //         ->copy()
+    //         ->addWeeks($weeks)
+    //         ->addMonths($months);
+    // }
 
     /**
      * Get tenant from spot

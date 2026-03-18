@@ -19,7 +19,9 @@ class TenantLogoController extends Controller
             abort(response()->json(['message' => 'Tenant not found'], 404));
         }
 
-        $tenant_details = TenantLogo::where('tenant_id', $tenant->id)->get();
+        $tenant_details = TenantLogo::where('tenant_id', $tenant->id)->first();
+        $tenant_details->company_name =$tenant->company_name;
+    
 
         return response()->json([
             'data' => $tenant_details,
